@@ -59,7 +59,9 @@ jobs:
           username: ${{ secrets.DEPLOY_USERNAME }}
           password: ${{ secrets.DEPLOY_PASSWORD }}
           source: apps/web/release.tar.gz
-          target: /tmp
+          target: ${{ secrets.DEPLOY_PATH }}/incoming
+          strip_components: 2
+          overwrite: true
 
       - name: Deploy on server
         uses: appleboy/ssh-action@v1.2.0
@@ -80,7 +82,8 @@ jobs:
             APP_DIR="$DEPLOY_PATH"
             RELEASE_DIR="$APP_DIR/releases/${{ github.sha }}"
             CURRENT_LINK="$APP_DIR/current"
-            ARCHIVE_PATH="/tmp/release.tar.gz"
+            ARCHIVE_DIR="$APP_DIR/incoming"
+            ARCHIVE_PATH="$ARCHIVE_DIR/release.tar.gz"
             PID_FILE="$APP_DIR/app.pid"
             LOG_FILE="$APP_DIR/app.log"
             CHECK_URL="${HEALTHCHECK_URL:-}"
@@ -98,7 +101,14 @@ jobs:
               exit 1
             fi
 
-            mkdir -p "$APP_DIR" "$APP_DIR/caddy/data" "$APP_DIR/caddy/config"
+            mkdir -p "$APP_DIR" "$ARCHIVE_DIR" "$APP_DIR/caddy/data" "$APP_DIR/caddy/config"
+
+            if [ ! -f "$ARCHIVE_PATH" ]; then
+              echo "Deploy bundle not found: $ARCHIVE_PATH"
+              ls -la "$ARCHIVE_DIR" || true
+              exit 1
+            fi
+
             mkdir -p "$RELEASE_DIR"
             tar -xzf "$ARCHIVE_PATH" -C "$RELEASE_DIR"
 
