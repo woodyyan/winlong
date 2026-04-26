@@ -87,34 +87,15 @@ export function RankingExplorer({
 
   return (
     <main className="page-shell space-y-6">
-      <section className="grid gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.9fr)]">
-        <div className="panel rounded-[32px] p-6 lg:p-8">
-          <p className="text-xs uppercase tracking-[0.34em] text-indigo-300/70">Winlong v1</p>
-          <h1 className="mt-3 max-w-2xl text-3xl font-semibold tracking-tight text-slate-50 lg:text-5xl">
-            用透明的多因子评分，快速筛出今天最值得盯的币。
-          </h1>
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-400 lg:text-base">
-            第一版先把排行榜、币种详情和系统状态跑起来。图表层已经按你的确认切到
-            TradingView Lightweight Charts + Apache ECharts，后续只需要替换真实采集数据，不必重做前端壳子。
-          </p>
-        </div>
-        <div className="panel-soft rounded-[32px] p-6">
-          <div className="text-sm text-slate-400">当前观察</div>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-            <div className="rounded-3xl border border-white/6 bg-white/[0.03] p-4">
-              <div className="metric-label">Top 1</div>
-              <div className="mt-2 text-xl font-semibold text-slate-100">{coins[0]?.name ?? "—"}</div>
-              <div className="mt-1 text-sm text-slate-400">评分 {coins[0]?.totalScore.toFixed(1) ?? "—"}</div>
-            </div>
-            <div className="rounded-3xl border border-white/6 bg-white/[0.03] p-4">
-              <div className="metric-label">AI 主题币</div>
-              <div className="mt-2 text-xl font-semibold text-slate-100">
-                {coins.filter((coin) => coin.tags.includes("ai")).length} 个
-              </div>
-              <div className="mt-1 text-sm text-slate-400">方便后面扩展专属榜单</div>
-            </div>
-          </div>
-        </div>
+      <section className="panel rounded-[32px] p-6 lg:p-8">
+        <p className="text-xs uppercase tracking-[0.34em] text-indigo-300/70">Winlong v1</p>
+        <h1 className="mt-3 max-w-2xl text-3xl font-semibold tracking-tight text-slate-50 lg:text-5xl">
+          用透明的多因子评分，快速筛出今天最值得盯的币。
+        </h1>
+        <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-400 lg:text-base">
+          第一版先把排行榜、币种详情和系统状态跑起来。图表层已经按你的确认切到
+          TradingView Lightweight Charts + Apache ECharts，后续只需要替换真实采集数据，不必重做前端壳子。
+        </p>
       </section>
 
       <StatusBar overview={status.overview} />
