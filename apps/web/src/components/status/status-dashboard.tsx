@@ -9,7 +9,15 @@ const sourceTone: Record<string, string> = {
   cached: "text-sky-300 bg-sky-500/10",
 };
 
+const qualityLabel: Record<string, string> = {
+  full: "正常",
+  degraded: "部分降级",
+  cached: "缓存",
+};
+
 export function StatusDashboard({ data }: { data: StatusResponse["data"] }) {
+  const qualityText = qualityLabel[data.overview.dataQuality] ?? data.overview.dataQuality;
+
   return (
     <main className="page-shell space-y-6">
       <section className="panel rounded-[32px] p-6 lg:p-8">
@@ -33,7 +41,7 @@ export function StatusDashboard({ data }: { data: StatusResponse["data"] }) {
         </div>
         <div className="panel rounded-[28px] p-5">
           <div className="flex items-center gap-2 text-slate-300"><ShieldAlert className="h-4 w-4 text-indigo-300" /> 数据质量</div>
-          <div className="mt-3 text-2xl font-semibold text-slate-50">{data.overview.dataQuality}</div>
+          <div className="mt-3 text-2xl font-semibold text-slate-50">{qualityText}</div>
           <div className="mt-2 text-sm text-slate-400">数据库 {data.overview.databaseSizeMb.toFixed(2)} MB</div>
         </div>
         <div className="panel rounded-[28px] p-5">

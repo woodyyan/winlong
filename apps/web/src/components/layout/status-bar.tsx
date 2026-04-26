@@ -9,8 +9,15 @@ const qualityTone: Record<string, string> = {
   cached: "bg-sky-500/12 text-sky-300",
 };
 
+const qualityLabel: Record<string, string> = {
+  full: "正常",
+  degraded: "部分降级",
+  cached: "缓存",
+};
+
 export function StatusBar({ overview }: { overview: StatusOverview }) {
   const qualityClass = qualityTone[overview.dataQuality] ?? qualityTone.full;
+  const qualityText = qualityLabel[overview.dataQuality] ?? overview.dataQuality;
 
   return (
     <section className="panel rounded-3xl p-4 md:p-5">
@@ -20,7 +27,7 @@ export function StatusBar({ overview }: { overview: StatusOverview }) {
           当前池内 {overview.poolSize} 个币种，{overview.coinsWithFutures} 个含合约情绪数据
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm text-slate-400">
-          <span className={`rounded-full px-3 py-1 text-xs ${qualityClass}`}>{overview.dataQuality}</span>
+          <span className={`rounded-full px-3 py-1 text-xs ${qualityClass}`}>{qualityText}</span>
           <span>更新于 {formatTimeAgo(overview.computedAt)}</span>
           <span>下次评分 {formatDateTime(overview.nextScoreAt)}</span>
         </div>
