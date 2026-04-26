@@ -92,6 +92,12 @@ http://127.0.0.1:3001/status
 - 服务器可拉取 `python:3.11-slim` 和 `node:22-bookworm-slim` 镜像
 - 如果你有外部反向代理，请把它转发到 `WEB_PORT`
 
+部署后的容器布局：
+
+- `winlong-api`：FastAPI 后端容器
+- `winlong-web`：Next.js 前端容器
+- SQLite 数据文件默认持久化到 `$DEPLOY_PATH/data/winlong.db`
+
 如果你还需要 Caddy、Nginx 或其他反向代理，请在服务器上单独维护，不再由这个 deploy workflow 管理。
 
 ## 健康检查

@@ -5,7 +5,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-ROOT_DIR = Path(__file__).resolve().parents[3]
+_CONFIG_PATH = Path(__file__).resolve()
+_PARENTS = _CONFIG_PATH.parents
+ROOT_DIR = Path(
+    os.getenv(
+        "WINLONG_ROOT_DIR",
+        _PARENTS[3] if len(_PARENTS) > 3 else _PARENTS[len(_PARENTS) - 1],
+    )
+)
 DEFAULT_DB_PATH = ROOT_DIR / "data" / "winlong.db"
 
 

@@ -154,13 +154,14 @@ jobs:
               --restart unless-stopped \
               --network "$DOCKER_NETWORK" \
               -p 127.0.0.1:${API_PORT}:${API_PORT} \
+              -e WINLONG_ROOT_DIR=/data \
               -e WINLONG_DB_PATH=/data/winlong.db \
               -e WINLONG_ALLOWED_ORIGINS=http://127.0.0.1:${WEB_PORT},http://localhost:${WEB_PORT} \
               -v "$APP_DIR/data:/data" \
               -v "$CURRENT_LINK/api:/app:ro" \
               -w /app \
               python:3.11-slim \
-              sh -lc "cp -R /app /tmp/app && cd /tmp/app && pip install --no-cache-dir . && exec uvicorn app.main:app --host 0.0.0.0 --port ${API_PORT}"
+              sh -lc "cp -R /app /tmp/app && cd /tmp/app && pip install --no-cache-dir . && python -m uvicorn app.main:app --host 0.0.0.0 --port ${API_PORT}"
 
             sleep 5
             if ! docker ps --format '{{.Names}}' | grep -Fx "$API_CONTAINER" >/dev/null 2>&1; then
