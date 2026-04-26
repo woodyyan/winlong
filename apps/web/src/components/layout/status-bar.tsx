@@ -1,4 +1,4 @@
-import { BellRing, DatabaseZap } from "lucide-react";
+import { DatabaseZap } from "lucide-react";
 
 import { formatDateTime, formatTimeAgo } from "@/lib/formatters";
 import type { StatusOverview } from "@/lib/types";
@@ -13,7 +13,7 @@ export function StatusBar({ overview }: { overview: StatusOverview }) {
   const qualityClass = qualityTone[overview.dataQuality] ?? qualityTone.full;
 
   return (
-    <section className="panel flex flex-col gap-4 rounded-3xl p-4 md:flex-row md:items-center md:justify-between md:p-5">
+    <section className="panel rounded-3xl p-4 md:p-5">
       <div className="space-y-2">
         <div className="flex items-center gap-2 text-sm text-slate-300">
           <DatabaseZap className="h-4 w-4 text-indigo-300" />
@@ -24,13 +24,6 @@ export function StatusBar({ overview }: { overview: StatusOverview }) {
           <span>更新于 {formatTimeAgo(overview.computedAt)}</span>
           <span>下次评分 {formatDateTime(overview.nextScoreAt)}</span>
         </div>
-      </div>
-      <div className="rounded-2xl border border-white/6 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
-        <div className="mb-1 flex items-center gap-2 text-slate-200">
-          <BellRing className="h-4 w-4 text-indigo-300" />
-          当前评分周期 {overview.refreshIntervalHours} 小时 / 次
-        </div>
-        <div className="text-slate-400">数据异常时自动回退缓存，保持榜单可读。</div>
       </div>
     </section>
   );
