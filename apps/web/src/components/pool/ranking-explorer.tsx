@@ -93,7 +93,6 @@ export function RankingExplorer({
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-2xl font-semibold text-slate-100">AI 排行 · Top {visibleCoins.length}</h2>
-            <p className="mt-1 text-sm text-slate-400">移动端看卡片，桌面端切完整表格。搜索和筛选都先在前端完成。</p>
           </div>
           <input
             value={search}
