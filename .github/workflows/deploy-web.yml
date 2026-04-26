@@ -86,10 +86,26 @@ jobs:
             ARCHIVE_PATH="$ARCHIVE_DIR/release.tar.gz"
             CHECK_URL="${HEALTHCHECK_URL:-}"
             WEB_CONTAINER="winlong-web"
+            RUNTIME_API_BASE_URL="$API_BASE_URL"
 
             if [ -z "$CHECK_URL" ]; then
               CHECK_URL="http://127.0.0.1:${WEB_PORT}/status"
             fi
+
+            case "$RUNTIME_API_BASE_URL" in
+              http://127.0.0.1:*)
+                RUNTIME_API_BASE_URL="http://host.docker.internal:${RUNTIME_API_BASE_URL##http://127.0.0.1:}"
+                ;;
+              https://127.0.0.1:*)
+                RUNTIME_API_BASE_URL="https://host.docker.internal:${RUNTIME_API_BASE_URL##https://127.0.0.1:}"
+                ;;
+              http://localhost:*)
+                RUNTIME_API_BASE_URL="http://host.docker.internal:${RUNTIME_API_BASE_URL##http://localhost:}"
+                ;;
+              https://localhost:*)
+                RUNTIME_API_BASE_URL="https://host.docker.internal:${RUNTIME_API_BASE_URL##https://localhost:}"
+                ;;
+            esac
 
             if ! command -v docker >/dev/null 2>&1; then
               echo "docker is not installed on the server. Install it first, then rerun this workflow."
@@ -111,7 +127,7 @@ jobs:
             NODE_ENV=production
             HOSTNAME=0.0.0.0
             PORT=$WEB_PORT
-            API_BASE_URL=$API_BASE_URL
+            API_BASE_URL=$RUNTIME_API_BASE_URL
             EOF
 
             ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
@@ -124,6 +140,7 @@ jobs:
               --name "$WEB_CONTAINER" \
               --restart unless-stopped \
               -p ${WEB_PORT}:${WEB_PORT} \
+              --add-host host.docker.internal:host-gateway \
               --env-file "$RELEASE_DIR/.env.production" \
               -v "$RELEASE_DIR:/app:ro" \
               -w /app \
