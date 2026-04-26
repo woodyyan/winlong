@@ -87,17 +87,6 @@ export function RankingExplorer({
 
   return (
     <main className="page-shell space-y-6">
-      <section className="panel rounded-[32px] p-6 lg:p-8">
-        <p className="text-xs uppercase tracking-[0.34em] text-indigo-300/70">Winlong v1</p>
-        <h1 className="mt-3 max-w-2xl text-3xl font-semibold tracking-tight text-slate-50 lg:text-5xl">
-          用透明的多因子评分，快速筛出今天最值得盯的币。
-        </h1>
-        <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-400 lg:text-base">
-          第一版先把排行榜、币种详情和系统状态跑起来。图表层已经按你的确认切到
-          TradingView Lightweight Charts + Apache ECharts，后续只需要替换真实采集数据，不必重做前端壳子。
-        </p>
-      </section>
-
       <StatusBar overview={status.overview} />
 
       <section className="space-y-4">
