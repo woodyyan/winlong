@@ -84,13 +84,11 @@ jobs:
             CURRENT_LINK="$APP_DIR/current"
             ARCHIVE_DIR="$APP_DIR/incoming"
             ARCHIVE_PATH="$ARCHIVE_DIR/release.tar.gz"
-            PID_FILE="$APP_DIR/app.pid"
-            LOG_FILE="$APP_DIR/app.log"
             CHECK_URL="${HEALTHCHECK_URL:-}"
             CADDY_SITE="winlong.wolongtrader.top"
+            WEB_CONTAINER="winlong-web"
             CADDY_CONTAINER="winlong-caddy"
-            CADDY_HTTP_PORT="80"
-            CADDY_HTTPS_PORT="443"
+            DOCKER_NETWORK="winlong-net"
 
             if [ -z "$CHECK_URL" ]; then
               CHECK_URL="https://${CADDY_SITE}/status"
@@ -123,28 +121,34 @@ jobs:
             cat > "$APP_DIR/Caddyfile" <<EOF
             ${CADDY_SITE} {
               encode zstd gzip
-              reverse_proxy 127.0.0.1:${WEB_PORT}
+              reverse_proxy ${WEB_CONTAINER}:${WEB_PORT}
             }
             EOF
 
             ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
 
-            if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
-              kill "$(cat "$PID_FILE")" || true
-              sleep 2
+            if ! docker network inspect "$DOCKER_NETWORK" >/dev/null 2>&1; then
+              docker network create "$DOCKER_NETWORK"
             fi
 
-            cd "$CURRENT_LINK"
-            set -a
-            . "$CURRENT_LINK/.env.production"
-            set +a
-            nohup node server.js > "$LOG_FILE" 2>&1 &
-            echo $! > "$PID_FILE"
+            if docker ps -a --format '{{.Names}}' | grep -Fx "$WEB_CONTAINER" >/dev/null 2>&1; then
+              docker rm -f "$WEB_CONTAINER"
+            fi
+
+            docker run -d \
+              --name "$WEB_CONTAINER" \
+              --restart unless-stopped \
+              --network "$DOCKER_NETWORK" \
+              --env-file "$RELEASE_DIR/.env.production" \
+              -v "$RELEASE_DIR:/app:ro" \
+              -w /app \
+              node:22-bookworm-slim \
+              node server.js
 
             sleep 3
-            if ! kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+            if ! docker ps --format '{{.Names}}' | grep -Fx "$WEB_CONTAINER" >/dev/null 2>&1; then
               echo "Application failed to start. Last 100 log lines:"
-              tail -n 100 "$LOG_FILE" || true
+              docker logs --tail 100 "$WEB_CONTAINER" || true
               exit 1
             fi
 
@@ -155,8 +159,9 @@ jobs:
             docker run -d \
               --name "$CADDY_CONTAINER" \
               --restart unless-stopped \
-              -p ${CADDY_HTTP_PORT}:80 \
-              -p ${CADDY_HTTPS_PORT}:443 \
+              --network "$DOCKER_NETWORK" \
+              -p 80:80 \
+              -p 443:443 \
               -v "$APP_DIR/Caddyfile:/etc/caddy/Caddyfile:ro" \
               -v "$APP_DIR/caddy/data:/data" \
               -v "$APP_DIR/caddy/config:/config" \
@@ -164,8 +169,8 @@ jobs:
 
             if ! curl --fail --silent --show-error --retry 5 --retry-delay 2 "$CHECK_URL" > /dev/null; then
               echo "Health check failed: $CHECK_URL"
+              docker logs --tail 100 "$WEB_CONTAINER" || true
               docker logs --tail 100 "$CADDY_CONTAINER" || true
-              tail -n 100 "$LOG_FILE" || true
               exit 1
             fi
 
