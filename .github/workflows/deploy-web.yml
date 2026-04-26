@@ -1,0 +1,167 @@
+name: Deploy Web
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "apps/web/**"
+      - ".github/workflows/deploy-web.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    env:
+      API_BASE_URL: ${{ secrets.API_BASE_URL }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app
+        run: npm run build
+
+      - name: Prepare deploy bundle
+        run: |
+          mkdir -p .next/standalone/.next
+          cp -R .next/static .next/standalone/.next/static
+
+          if [ -d public ]; then
+            cp -R public .next/standalone/public
+          fi
+
+          tar -czf release.tar.gz -C .next/standalone .
+
+      - name: Upload bundle to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          port: ${{ secrets.DEPLOY_SSH_PORT }}
+          username: ${{ secrets.DEPLOY_USERNAME }}
+          password: ${{ secrets.DEPLOY_PASSWORD }}
+          source: apps/web/release.tar.gz
+          target: /tmp
+
+      - name: Deploy on server
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          WEB_PORT: ${{ secrets.WEB_PORT }}
+          HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          port: ${{ secrets.DEPLOY_SSH_PORT }}
+          username: ${{ secrets.DEPLOY_USERNAME }}
+          password: ${{ secrets.DEPLOY_PASSWORD }}
+          envs: DEPLOY_PATH,API_BASE_URL,WEB_PORT,HEALTHCHECK_URL
+          script: |
+            set -eu
+
+            APP_DIR="$DEPLOY_PATH"
+            RELEASE_DIR="$APP_DIR/releases/${{ github.sha }}"
+            CURRENT_LINK="$APP_DIR/current"
+            ARCHIVE_PATH="/tmp/release.tar.gz"
+            PID_FILE="$APP_DIR/app.pid"
+            LOG_FILE="$APP_DIR/app.log"
+            CHECK_URL="${HEALTHCHECK_URL:-}"
+            CADDY_SITE="winlong.wolongtrader.top"
+            CADDY_CONTAINER="winlong-caddy"
+            CADDY_HTTP_PORT="80"
+            CADDY_HTTPS_PORT="443"
+
+            if [ -z "$CHECK_URL" ]; then
+              CHECK_URL="https://${CADDY_SITE}/status"
+            fi
+
+            if ! command -v docker >/dev/null 2>&1; then
+              echo "docker is not installed on the server. Install it first, then rerun this workflow."
+              exit 1
+            fi
+
+            mkdir -p "$APP_DIR" "$APP_DIR/caddy/data" "$APP_DIR/caddy/config"
+            mkdir -p "$RELEASE_DIR"
+            tar -xzf "$ARCHIVE_PATH" -C "$RELEASE_DIR"
+
+            cat > "$RELEASE_DIR/.env.production" <<EOF
+            NODE_ENV=production
+            HOSTNAME=0.0.0.0
+            PORT=$WEB_PORT
+            API_BASE_URL=$API_BASE_URL
+            EOF
+
+            mkdir -p "$APP_DIR"
+            cat > "$APP_DIR/Caddyfile" <<EOF
+            ${CADDY_SITE} {
+              encode zstd gzip
+              reverse_proxy 127.0.0.1:${WEB_PORT}
+            }
+            EOF
+
+            ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
+
+            if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+              kill "$(cat "$PID_FILE")" || true
+              sleep 2
+            fi
+
+            cd "$CURRENT_LINK"
+            set -a
+            . "$CURRENT_LINK/.env.production"
+            set +a
+            nohup node server.js > "$LOG_FILE" 2>&1 &
+            echo $! > "$PID_FILE"
+
+            sleep 3
+            if ! kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+              echo "Application failed to start. Last 100 log lines:"
+              tail -n 100 "$LOG_FILE" || true
+              exit 1
+            fi
+
+            if docker ps -a --format '{{.Names}}' | grep -Fx "$CADDY_CONTAINER" >/dev/null 2>&1; then
+              docker rm -f "$CADDY_CONTAINER"
+            fi
+
+            docker run -d \
+              --name "$CADDY_CONTAINER" \
+              --restart unless-stopped \
+              -p ${CADDY_HTTP_PORT}:80 \
+              -p ${CADDY_HTTPS_PORT}:443 \
+              -v "$APP_DIR/Caddyfile:/etc/caddy/Caddyfile:ro" \
+              -v "$APP_DIR/caddy/data:/data" \
+              -v "$APP_DIR/caddy/config:/config" \
+              caddy:2
+
+            if ! curl --fail --silent --show-error --retry 5 --retry-delay 2 "$CHECK_URL" > /dev/null; then
+              echo "Health check failed: $CHECK_URL"
+              docker logs --tail 100 "$CADDY_CONTAINER" || true
+              tail -n 100 "$LOG_FILE" || true
+              exit 1
+            fi
+
+            rm -f "$ARCHIVE_PATH"
+
+            if [ -d "$APP_DIR/releases" ]; then
+              cd "$APP_DIR/releases"
+              ls -1dt */ 2>/dev/null | tail -n +6 | xargs -r rm -rf
+            fi
