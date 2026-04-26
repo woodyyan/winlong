@@ -48,10 +48,11 @@ Winlong 的核心目标，是把一组加密货币按多因子模型做统一打
 工作流会执行这些步骤：
 
 1. 在 GitHub Actions 中构建 `apps/web`
-2. 生成 Next.js standalone 部署包
-3. 通过 SSH 用户名 + 密码把部署包传到服务器
-4. 在服务器上用 Docker 启动前端容器
-5. 部署完成后自动执行健康检查
+2. 打包 `apps/api` 和 `apps/web`
+3. 通过 SSH 用户名 + 密码把两个部署包传到服务器
+4. 在服务器上用 Docker 启动后端容器
+5. 在服务器上用 Docker 启动前端容器
+6. 部署完成后自动执行健康检查
 
 当前前端已改为同源代理方案：
 
@@ -70,8 +71,8 @@ Winlong 的核心目标，是把一组加密货币按多因子模型做统一打
 - `DEPLOY_USERNAME`：SSH 登录用户名
 - `DEPLOY_PASSWORD`：SSH 登录密码
 - `DEPLOY_PATH`：服务器部署目录，例如 `/srv/winlong-web`
+- `API_PORT`：后端容器对宿主机暴露的端口，默认建议 `8001`
 - `WEB_PORT`：Next.js 在服务器本机监听的端口，例如 `3001`
-- `API_BASE_URL`：后端服务地址，例如 `http://127.0.0.1:8001`
 
 可选：
 
@@ -88,7 +89,8 @@ http://127.0.0.1:3001/status
 当前工作流假设服务器已经具备这些条件：
 
 - 已安装 Docker
-- 后端 API 已经在服务器上运行，且 `API_BASE_URL` 可从前端进程所在机器访问
+- 服务器可拉取 `python:3.11-slim` 和 `node:22-bookworm-slim` 镜像
+- 如果你有外部反向代理，请把它转发到 `WEB_PORT`
 
 如果你还需要 Caddy、Nginx 或其他反向代理，请在服务器上单独维护，不再由这个 deploy workflow 管理。
 
