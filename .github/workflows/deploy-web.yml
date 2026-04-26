@@ -85,13 +85,10 @@ jobs:
             ARCHIVE_DIR="$APP_DIR/incoming"
             ARCHIVE_PATH="$ARCHIVE_DIR/release.tar.gz"
             CHECK_URL="${HEALTHCHECK_URL:-}"
-            CADDY_SITE="winlong.wolongtrader.top"
             WEB_CONTAINER="winlong-web"
-            CADDY_CONTAINER="winlong-caddy"
-            DOCKER_NETWORK="winlong-net"
 
             if [ -z "$CHECK_URL" ]; then
-              CHECK_URL="https://${CADDY_SITE}/status"
+              CHECK_URL="http://127.0.0.1:${WEB_PORT}/status"
             fi
 
             if ! command -v docker >/dev/null 2>&1; then
@@ -99,7 +96,7 @@ jobs:
               exit 1
             fi
 
-            mkdir -p "$APP_DIR" "$ARCHIVE_DIR" "$APP_DIR/caddy/data" "$APP_DIR/caddy/config"
+            mkdir -p "$APP_DIR" "$ARCHIVE_DIR"
 
             if [ ! -f "$ARCHIVE_PATH" ]; then
               echo "Deploy bundle not found: $ARCHIVE_PATH"
@@ -117,19 +114,7 @@ jobs:
             API_BASE_URL=$API_BASE_URL
             EOF
 
-            mkdir -p "$APP_DIR"
-            cat > "$APP_DIR/Caddyfile" <<EOF
-            ${CADDY_SITE} {
-              encode zstd gzip
-              reverse_proxy ${WEB_CONTAINER}:${WEB_PORT}
-            }
-            EOF
-
             ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
-
-            if ! docker network inspect "$DOCKER_NETWORK" >/dev/null 2>&1; then
-              docker network create "$DOCKER_NETWORK"
-            fi
 
             if docker ps -a --format '{{.Names}}' | grep -Fx "$WEB_CONTAINER" >/dev/null 2>&1; then
               docker rm -f "$WEB_CONTAINER"
@@ -138,7 +123,7 @@ jobs:
             docker run -d \
               --name "$WEB_CONTAINER" \
               --restart unless-stopped \
-              --network "$DOCKER_NETWORK" \
+              -p ${WEB_PORT}:${WEB_PORT} \
               --env-file "$RELEASE_DIR/.env.production" \
               -v "$RELEASE_DIR:/app:ro" \
               -w /app \
@@ -152,25 +137,9 @@ jobs:
               exit 1
             fi
 
-            if docker ps -a --format '{{.Names}}' | grep -Fx "$CADDY_CONTAINER" >/dev/null 2>&1; then
-              docker rm -f "$CADDY_CONTAINER"
-            fi
-
-            docker run -d \
-              --name "$CADDY_CONTAINER" \
-              --restart unless-stopped \
-              --network "$DOCKER_NETWORK" \
-              -p 80:80 \
-              -p 443:443 \
-              -v "$APP_DIR/Caddyfile:/etc/caddy/Caddyfile:ro" \
-              -v "$APP_DIR/caddy/data:/data" \
-              -v "$APP_DIR/caddy/config:/config" \
-              caddy:2
-
             if ! curl --fail --silent --show-error --retry 5 --retry-delay 2 "$CHECK_URL" > /dev/null; then
               echo "Health check failed: $CHECK_URL"
               docker logs --tail 100 "$WEB_CONTAINER" || true
-              docker logs --tail 100 "$CADDY_CONTAINER" || true
               exit 1
             fi
 
