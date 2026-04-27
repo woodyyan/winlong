@@ -19,7 +19,7 @@ function createColumns(activePool: PoolKey) {
     helper.display({
       id: "rank",
       header: "排名",
-      cell: ({ row }) => <RankBadge rank={row.original.rank} rankChange={row.original.rankChange} />,
+      cell: ({ row }) => <RankBadge rank={row.index + 1} />,
     }),
     helper.accessor("baseAsset", {
       header: "币种",

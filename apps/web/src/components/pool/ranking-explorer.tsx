@@ -150,8 +150,8 @@ export function RankingExplorer({
         </div>
 
         <div className="grid gap-4 lg:hidden">
-          {visibleCoins.map((coin) => (
-            <CoinCard key={coin.symbol} coin={coin} activePool={activePool} />
+          {visibleCoins.map((coin, index) => (
+            <CoinCard key={coin.symbol} coin={coin} activePool={activePool} displayRank={index + 1} />
           ))}
         </div>
 

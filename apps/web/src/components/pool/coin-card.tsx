@@ -12,7 +12,15 @@ import { getPoolDirectionLabel, getPoolMetricChips } from "@/components/pool/poo
 import { RankBadge } from "@/components/pool/rank-badge";
 import { ScoreBar } from "@/components/pool/score-bar";
 
-export function CoinCard({ coin, activePool }: { coin: CoinSummary; activePool: PoolKey }) {
+export function CoinCard({
+  coin,
+  activePool,
+  displayRank,
+}: {
+  coin: CoinSummary;
+  activePool: PoolKey;
+  displayRank: number;
+}) {
   const symbols = useWatchlistStore((state) => state.symbols);
   const toggle = useWatchlistStore((state) => state.toggle);
   const isSaved = symbols.includes(coin.symbol);
@@ -28,7 +36,7 @@ export function CoinCard({ coin, activePool }: { coin: CoinSummary; activePool: 
             {coin.logoText}
           </div>
           <div>
-            <RankBadge rank={coin.rank} rankChange={coin.rankChange} />
+            <RankBadge rank={displayRank} />
             <p className="mt-1 text-sm text-slate-400">{coin.name} · {coin.nameZh}</p>
           </div>
         </div>

@@ -3,13 +3,6 @@
 import type { PoolSummary } from "@/lib/types";
 import type { PoolKey } from "@/lib/pool-meta";
 
-function formatLeader(summary: PoolSummary) {
-  if (!summary.leaderSymbol || summary.leaderScore === null) {
-    return "暂无样本";
-  }
-  return `${summary.leaderSymbol} · ${summary.leaderScore.toFixed(1)}`;
-}
-
 export function PoolTabs({
   pools,
   activePool,
@@ -40,11 +33,6 @@ export function PoolTabs({
               <div className="rounded-full bg-white/[0.04] px-3 py-1 text-xs text-slate-300">{pool.count} 币</div>
             </div>
             <p className="mt-3 text-sm leading-6 text-slate-400">{pool.description}</p>
-            <div className="mt-4 flex items-center justify-between text-sm text-slate-300">
-              <span>Top1</span>
-              <span className="font-mono text-cyan-100">{formatLeader(pool)}</span>
-            </div>
-            <div className="mt-2 text-xs text-slate-500">平均分 {pool.avgScore.toFixed(1)}</div>
           </button>
         );
       })}
