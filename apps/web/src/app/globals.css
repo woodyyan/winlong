@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
 :root {
+  --font-sans: "Helvetica Neue", "PingFang SC", "Noto Sans SC", sans-serif;
+  --font-mono: "SFMono-Regular", "JetBrains Mono", "Menlo", monospace;
   --bg-primary: #0a0e17;
   --bg-secondary: #111827;
   --bg-card: #151c2c;
@@ -31,6 +33,7 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
+  font-family: var(--font-sans);
   color: var(--text-primary);
   background:
     radial-gradient(circle at top, rgba(99, 102, 241, 0.16), transparent 32%),

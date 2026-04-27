@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CoinFactors(BaseModel):
@@ -28,6 +28,10 @@ class CoinSummary(BaseModel):
     openInterest: float | None = None
     fundingRate: float | None = None
     longShortRatio: float | None = None
+    primaryPool: str | None = None
+    primaryScore: float | None = None
+    poolScores: dict[str, float] = Field(default_factory=dict)
+    reasonTags: list[str] = Field(default_factory=list)
     tags: list[str]
     updatedAt: str
 
@@ -69,13 +73,35 @@ class DerivativesPanel(BaseModel):
     fundingRate: float | None = None
     longShortRatio: float | None = None
     oiChange24h: float | None = None
-    recentFundingRates: list[float] = []
+    recentFundingRates: list[float] = Field(default_factory=list)
+
+
+class MarketFeatureSnapshot(BaseModel):
+    oiChange1h: float | None = None
+    oiChange4h: float | None = None
+    oiChange24h: float | None = None
+    turnover24h: float | None = None
+    oiToVolume: float | None = None
+    oiToMarketcap: float | None = None
+    corrBtc7d: float | None = None
+    corrEth7d: float | None = None
+    fundingRateMean24h: float | None = None
+    fundingRateStd24h: float | None = None
+    priceChange1h: float | None = None
+    priceChange24h: float | None = None
+    distanceToMa20: float | None = None
+    priceVolatility7d: float | None = None
+    longShortRatioStability: float | None = None
+    oiStability7d: float | None = None
+    liquidationToOi24h: float | None = None
+    liquidationToVolume24h: float | None = None
 
 
 class CoinDetailData(BaseModel):
     coin: CoinSummary
     factorDetails: list[FactorCategoryDetail]
     derivatives: DerivativesPanel
+    marketFeatures: MarketFeatureSnapshot | None = None
 
 
 class CoinDetailResponse(BaseModel):

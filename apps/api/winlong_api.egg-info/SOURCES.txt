@@ -9,6 +9,7 @@ app/data/asset_registry.py
 app/data/seed_payload.py
 app/services/__init__.py
 app/services/market_sync_service.py
+app/services/pool_scoring_service.py
 app/services/winlong_service.py
 tests/test_api.py
 winlong_api.egg-info/PKG-INFO

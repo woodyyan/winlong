@@ -30,8 +30,8 @@ async def lifespan(_: FastAPI):
     if settings.enable_sync_on_start:
         sync_service = MarketSyncService()
         try:
-            payload, snapshots = await sync_service.build_runtime_dataset()
-            replace_runtime_dataset(payload, snapshots=snapshots)
+            payload, snapshots, features, pool_scores = await sync_service.build_runtime_dataset()
+            replace_runtime_dataset(payload, snapshots=snapshots, features=features, pool_scores=pool_scores)
             logger.info("runtime market sync completed on startup")
         except MarketSyncError as exc:
             logger.warning("runtime market sync skipped: %s", exc)

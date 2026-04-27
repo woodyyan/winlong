@@ -109,6 +109,52 @@ CREATE TABLE IF NOT EXISTS market_snapshots (
 
 CREATE INDEX IF NOT EXISTS idx_market_snapshots_symbol_time
 ON market_snapshots(symbol, snapshot_time DESC);
+
+CREATE TABLE IF NOT EXISTS market_features (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    symbol TEXT NOT NULL,
+    feature_time TEXT NOT NULL,
+    oi_change_1h REAL,
+    oi_change_4h REAL,
+    oi_change_24h REAL,
+    turnover_24h REAL,
+    oi_to_volume REAL,
+    oi_to_marketcap REAL,
+    corr_btc_7d REAL,
+    corr_eth_7d REAL,
+    funding_rate_mean_24h REAL,
+    funding_rate_std_24h REAL,
+    price_change_1h REAL,
+    price_change_24h REAL,
+    distance_to_ma20 REAL,
+    price_volatility_7d REAL,
+    long_short_ratio_stability REAL,
+    oi_stability_7d REAL,
+    liquidation_to_oi_24h REAL,
+    liquidation_to_volume_24h REAL
+);
+
+CREATE INDEX IF NOT EXISTS idx_market_features_symbol_time
+ON market_features(symbol, feature_time DESC);
+
+CREATE TABLE IF NOT EXISTS pool_scores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    symbol TEXT NOT NULL,
+    score_time TEXT NOT NULL,
+    momentum_score REAL NOT NULL,
+    trend_score REAL NOT NULL,
+    mean_reversion_score REAL NOT NULL,
+    ls_game_score REAL NOT NULL,
+    momentum_direction TEXT,
+    mean_reversion_direction TEXT,
+    ls_game_direction TEXT,
+    primary_pool TEXT NOT NULL,
+    primary_score REAL NOT NULL,
+    reason_tags TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_pool_scores_symbol_time
+ON pool_scores(symbol, score_time DESC);
 """
 
 
@@ -147,6 +193,8 @@ def _truncate_tables(conn: sqlite3.Connection) -> None:
         "system_logs",
         "status_overview",
         "market_snapshots",
+        "market_features",
+        "pool_scores",
     ]:
         conn.execute(f"DELETE FROM {table}")
 
@@ -155,6 +203,8 @@ def replace_runtime_dataset(
     payload: dict,
     *,
     snapshots: Iterable[dict] | None = None,
+    features: Iterable[dict] | None = None,
+    pool_scores: Iterable[dict] | None = None,
     db_path: Path | None = None,
 ) -> None:
     target = db_path or settings.db_path
@@ -168,6 +218,10 @@ def replace_runtime_dataset(
         _insert_overview(conn, payload["overview"])
         if snapshots is not None:
             _insert_market_snapshots(conn, snapshots)
+        if features is not None:
+            _insert_market_features(conn, features)
+        if pool_scores is not None:
+            _insert_pool_scores(conn, pool_scores)
         conn.commit()
 
 
@@ -299,4 +353,46 @@ def _insert_market_snapshots(conn: sqlite3.Connection, rows: Iterable[dict]) -> 
         )
         """,
         [{**row, "tags": json.dumps(row["tags"])} for row in rows],
+    )
+
+
+def _insert_market_features(conn: sqlite3.Connection, rows: Iterable[dict]) -> None:
+    conn.execute("DELETE FROM market_features")
+    conn.executemany(
+        """
+        INSERT INTO market_features (
+            symbol, feature_time, oi_change_1h, oi_change_4h, oi_change_24h,
+            turnover_24h, oi_to_volume, oi_to_marketcap, corr_btc_7d, corr_eth_7d,
+            funding_rate_mean_24h, funding_rate_std_24h, price_change_1h,
+            price_change_24h, distance_to_ma20, price_volatility_7d,
+            long_short_ratio_stability, oi_stability_7d, liquidation_to_oi_24h,
+            liquidation_to_volume_24h
+        ) VALUES (
+            :symbol, :featureTime, :oiChange1h, :oiChange4h, :oiChange24h,
+            :turnover24h, :oiToVolume, :oiToMarketcap, :corrBtc7d, :corrEth7d,
+            :fundingRateMean24h, :fundingRateStd24h, :priceChange1h,
+            :priceChange24h, :distanceToMa20, :priceVolatility7d,
+            :longShortRatioStability, :oiStability7d, :liquidationToOi24h,
+            :liquidationToVolume24h
+        )
+        """,
+        rows,
+    )
+
+
+def _insert_pool_scores(conn: sqlite3.Connection, rows: Iterable[dict]) -> None:
+    conn.execute("DELETE FROM pool_scores")
+    conn.executemany(
+        """
+        INSERT INTO pool_scores (
+            symbol, score_time, momentum_score, trend_score, mean_reversion_score,
+            ls_game_score, momentum_direction, mean_reversion_direction,
+            ls_game_direction, primary_pool, primary_score, reason_tags
+        ) VALUES (
+            :symbol, :scoreTime, :momentumScore, :trendScore, :meanReversionScore,
+            :lsGameScore, :momentumDirection, :meanReversionDirection,
+            :lsGameDirection, :primaryPool, :primaryScore, :reasonTags
+        )
+        """,
+        [{**row, "reasonTags": json.dumps(row["reasonTags"])} for row in rows],
     )

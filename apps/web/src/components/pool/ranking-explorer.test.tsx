@@ -84,10 +84,10 @@ describe("RankingExplorer", () => {
     const user = userEvent.setup();
     render(<RankingExplorer initialList={listFixture} initialStatus={statusFixture} />);
 
-    expect(screen.getByText("Bitcoin")).toBeInTheDocument();
+    expect(screen.getByText("AI 排行 · Top 2")).toBeInTheDocument();
     const input = screen.getByPlaceholderText("搜索币种或标签");
     await user.type(input, "tao");
 
-    expect(screen.getByText(/Bittensor/)).toBeInTheDocument();
+    expect(screen.getByText("AI 排行 · Top 1")).toBeInTheDocument();
   });
 });
