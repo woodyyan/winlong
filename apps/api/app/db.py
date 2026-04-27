@@ -87,6 +87,28 @@ CREATE TABLE IF NOT EXISTS status_overview (
     data_quality TEXT NOT NULL,
     uptime TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS market_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    symbol TEXT NOT NULL,
+    snapshot_time TEXT NOT NULL,
+    price REAL NOT NULL,
+    price_change_24h REAL NOT NULL,
+    quote_volume_24h REAL NOT NULL,
+    market_cap REAL NOT NULL,
+    open_interest REAL,
+    funding_rate REAL,
+    predicted_funding_rate REAL,
+    global_long_short_ratio REAL,
+    top_long_short_ratio REAL,
+    top_position_ratio REAL,
+    liquidation_notional_24h REAL,
+    source TEXT NOT NULL,
+    tags TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_market_snapshots_symbol_time
+ON market_snapshots(symbol, snapshot_time DESC);
 """
 
 
@@ -117,8 +139,36 @@ def init_db(db_path: Path | None = None, *, force_reset: bool = False) -> None:
 
 
 def _truncate_tables(conn: sqlite3.Connection) -> None:
-    for table in ["coins", "factor_details", "history_points", "source_status", "system_logs", "status_overview"]:
+    for table in [
+        "coins",
+        "factor_details",
+        "history_points",
+        "source_status",
+        "system_logs",
+        "status_overview",
+        "market_snapshots",
+    ]:
         conn.execute(f"DELETE FROM {table}")
+
+
+def replace_runtime_dataset(
+    payload: dict,
+    *,
+    snapshots: Iterable[dict] | None = None,
+    db_path: Path | None = None,
+) -> None:
+    target = db_path or settings.db_path
+    with get_connection(target) as conn:
+        _truncate_tables(conn)
+        _insert_coins(conn, payload["coins"])
+        _insert_factor_rows(conn, payload["factorRows"])
+        _insert_history_rows(conn, payload["historyRows"])
+        _insert_sources(conn, payload["sources"])
+        _insert_logs(conn, payload["logs"])
+        _insert_overview(conn, payload["overview"])
+        if snapshots is not None:
+            _insert_market_snapshots(conn, snapshots)
+        conn.commit()
 
 
 def _seed_database(conn: sqlite3.Connection) -> None:
@@ -128,27 +178,7 @@ def _seed_database(conn: sqlite3.Connection) -> None:
     _insert_history_rows(conn, payload["historyRows"])
     _insert_sources(conn, payload["sources"])
     _insert_logs(conn, payload["logs"])
-    overview = payload["overview"]
-    conn.execute(
-        """
-        INSERT INTO status_overview (
-            id, computed_at, last_score_at, next_score_at,
-            refresh_interval_hours, pool_size, coins_with_futures,
-            data_quality, uptime
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            1,
-            overview["computedAt"],
-            overview["lastScoreAt"],
-            overview["nextScoreAt"],
-            overview["refreshIntervalHours"],
-            overview["poolSize"],
-            overview["coinsWithFutures"],
-            overview["dataQuality"],
-            overview["uptime"],
-        ),
-    )
+    _insert_overview(conn, payload["overview"])
 
 
 def _insert_coins(conn: sqlite3.Connection, coins: Iterable[dict]) -> None:
@@ -226,4 +256,47 @@ def _insert_logs(conn: sqlite3.Connection, rows: Iterable[dict]) -> None:
         VALUES (:timestamp, :level, :message)
         """,
         rows,
+    )
+
+
+def _insert_overview(conn: sqlite3.Connection, overview: dict) -> None:
+    conn.execute(
+        """
+        INSERT INTO status_overview (
+            id, computed_at, last_score_at, next_score_at,
+            refresh_interval_hours, pool_size, coins_with_futures,
+            data_quality, uptime
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            1,
+            overview["computedAt"],
+            overview["lastScoreAt"],
+            overview["nextScoreAt"],
+            overview["refreshIntervalHours"],
+            overview["poolSize"],
+            overview["coinsWithFutures"],
+            overview["dataQuality"],
+            overview["uptime"],
+        ),
+    )
+
+
+def _insert_market_snapshots(conn: sqlite3.Connection, rows: Iterable[dict]) -> None:
+    conn.execute("DELETE FROM market_snapshots")
+    conn.executemany(
+        """
+        INSERT INTO market_snapshots (
+            symbol, snapshot_time, price, price_change_24h, quote_volume_24h,
+            market_cap, open_interest, funding_rate, predicted_funding_rate,
+            global_long_short_ratio, top_long_short_ratio, top_position_ratio,
+            liquidation_notional_24h, source, tags
+        ) VALUES (
+            :symbol, :snapshotTime, :price, :priceChange24h, :quoteVolume24h,
+            :marketCap, :openInterest, :fundingRate, :predictedFundingRate,
+            :globalLongShortRatio, :topLongShortRatio, :topPositionRatio,
+            :liquidationNotional24h, :source, :tags
+        )
+        """,
+        [{**row, "tags": json.dumps(row["tags"])} for row in rows],
     )

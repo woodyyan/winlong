@@ -174,6 +174,7 @@ class WinlongService:
             overview = conn.execute("SELECT * FROM status_overview WHERE id = 1").fetchone()
             sources = conn.execute("SELECT * FROM source_status ORDER BY source ASC").fetchall()
             logs = conn.execute("SELECT * FROM system_logs ORDER BY timestamp DESC LIMIT 10").fetchall()
+            runtime_snapshot = conn.execute("SELECT COUNT(*) AS total FROM market_snapshots").fetchone()
 
         database_size_mb = round(self._database_size_mb(), 2)
         return {
@@ -190,6 +191,7 @@ class WinlongService:
                     "dataQuality": overview["data_quality"],
                     "databaseSizeMb": database_size_mb,
                     "uptime": overview["uptime"],
+                    "runtimeData": runtime_snapshot["total"] > 0,
                 },
                 "sources": [
                     {

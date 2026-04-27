@@ -121,6 +121,7 @@ class StatusOverview(BaseModel):
     dataQuality: str
     databaseSizeMb: float
     uptime: str
+    runtimeData: bool = False
 
 
 class StatusData(BaseModel):

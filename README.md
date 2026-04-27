@@ -41,6 +41,28 @@ Winlong 的核心目标，是把一组加密货币按多因子模型做统一打
 - 前端启动在 `127.0.0.1:3001`
 - 脚本会自动写入 `apps/web/.env.local`
 
+默认情况下，`./start-local.sh` 现在会自动尝试真实数据同步。
+
+如果你想显式打开或关闭它，可以这样控制：
+
+```bash
+export WINLONG_ENABLE_SYNC_ON_START=true
+./start-local.sh
+```
+
+或：
+
+```bash
+export WINLONG_ENABLE_SYNC_ON_START=false
+./start-local.sh
+```
+
+说明：
+
+- 后端启动时会尝试从 Binance Spot、Binance Futures 和 CoinGecko 拉实时数据
+- 若同步失败，后端会保留当前数据库中的数据，不会直接崩掉
+- 实时同步成功后，`/api/winlong/status` 里的 `overview.runtimeData` 会变成 `true`
+
 ## 线上部署
 
 仓库内已包含 GitHub Actions 工作流：`[deploy-web.yml](/Users/yansongbai/Documents/Documents - WOODYYAN-MC2/projects/winlong/.github/workflows/deploy-web.yml)`。

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import logging
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
@@ -8,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.db import init_db
+from app.db import init_db, replace_runtime_dataset
 from app.schemas import (
     CoinDetailResponse,
     CoinHistoryResponse,
@@ -16,12 +17,26 @@ from app.schemas import (
     ListResponse,
     StatusResponse,
 )
+from app.services.market_sync_service import MarketSyncError, MarketSyncService
 from app.services.winlong_service import CoinNotFoundError, WinlongService
+
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_db()
+    if settings.enable_sync_on_start:
+        sync_service = MarketSyncService()
+        try:
+            payload, snapshots = await sync_service.build_runtime_dataset()
+            replace_runtime_dataset(payload, snapshots=snapshots)
+            logger.info("runtime market sync completed on startup")
+        except MarketSyncError as exc:
+            logger.warning("runtime market sync skipped: %s", exc)
+        except Exception:
+            logger.exception("runtime market sync failed, keeping current dataset")
     yield
 
 

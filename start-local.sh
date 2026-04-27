@@ -92,7 +92,7 @@ if [[ ! -d "$API_VENV_DIR" ]]; then
 fi
 
 echo "Installing backend dependencies..."
-"$API_VENV_DIR/bin/pip" install -e "$API_DIR"
+"$API_VENV_DIR/bin/pip" install -e "$API_DIR[dev]"
 
 echo "Installing frontend dependencies..."
 npm --prefix "$WEB_DIR" install
@@ -102,6 +102,9 @@ write_web_env
 
 export WINLONG_DB_PATH="$DB_PATH"
 export WINLONG_ALLOWED_ORIGINS="http://localhost:$WEB_PORT,http://127.0.0.1:$WEB_PORT"
+export WINLONG_ENABLE_SYNC_ON_START="${WINLONG_ENABLE_SYNC_ON_START:-true}"
+
+echo "Backend live sync on start: $WINLONG_ENABLE_SYNC_ON_START"
 
 echo "Starting backend on http://$API_HOST:$API_PORT ..."
 (
