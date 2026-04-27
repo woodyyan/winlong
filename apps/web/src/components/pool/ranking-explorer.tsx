@@ -4,7 +4,6 @@ import React, { useMemo, useState } from "react";
 import useSWR from "swr";
 
 import { CoinCard } from "@/components/pool/coin-card";
-import { PoolSummaryCard } from "@/components/pool/pool-summary-card";
 import { PoolTabs } from "@/components/pool/pool-tabs";
 import { RankingTable } from "@/components/pool/ranking-table";
 import { StatusBar } from "@/components/layout/status-bar";
@@ -116,7 +115,6 @@ export function RankingExplorer({
     <main className="page-shell space-y-6">
       <StatusBar overview={status.overview} />
       <PoolTabs pools={pools} activePool={activePool} onSelect={setActivePool} />
-      {activeSummary ? <PoolSummaryCard summary={activeSummary} overview={status.overview} /> : null}
 
       <section className="space-y-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
