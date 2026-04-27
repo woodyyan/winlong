@@ -124,7 +124,6 @@ export function RankingExplorer({
             <h2 className="text-2xl font-semibold text-slate-100">
               {activeSummary?.name ?? "币种池"} · Top {visibleCoins.length}
             </h2>
-            <p className="mt-2 text-sm text-slate-400">每个池只消费后端已算好的池分、方向和入池理由，不在前端现场重算。</p>
           </div>
           <input
             value={search}
