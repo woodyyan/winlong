@@ -164,7 +164,7 @@ describe("RankingExplorer", () => {
     await user.click(screen.getByRole("button", { name: /逆势池/i }));
 
     expect(screen.getByRole("heading", { name: "逆势池 · Top 2" })).toBeInTheDocument();
-    expect(screen.getAllByText("TAOUSDT")[0]).toBeInTheDocument();
+    expect(screen.getByText("比特张量")).toBeInTheDocument();
   });
 
   it("updates visible rows when searching inside the active pool", async () => {
