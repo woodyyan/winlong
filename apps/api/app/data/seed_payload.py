@@ -3,6 +3,8 @@ from __future__ import annotations
 import math
 from datetime import datetime, timedelta, timezone
 
+from app.services.pool_scoring_service import PoolScoringService
+
 
 BASE_TIME = datetime(2026, 4, 22, 8, 0, tzinfo=timezone.utc)
 REFRESH_INTERVAL_HOURS = 4
@@ -286,8 +288,13 @@ def build_seed_payload() -> dict:
             "updatedAt": iso_timestamp(),
         }
         coins.append(coin)
+
+    scoring_service = PoolScoringService()
+    coins, features, pool_scores = scoring_service.build_features_and_scores(coins)
+
+    for coin in coins:
         factor_rows.extend(build_factor_rows(coin))
-        history_rows.extend(build_history_rows(coin, rank))
+        history_rows.extend(build_history_rows(coin, coin["rank"]))
 
     sources = [
         {
@@ -335,6 +342,8 @@ def build_seed_payload() -> dict:
         "coins": coins,
         "factorRows": factor_rows,
         "historyRows": history_rows,
+        "features": features,
+        "poolScores": pool_scores,
         "sources": sources,
         "logs": logs,
         "overview": overview,

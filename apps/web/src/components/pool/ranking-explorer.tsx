@@ -4,28 +4,45 @@ import React, { useMemo, useState } from "react";
 import useSWR from "swr";
 
 import { CoinCard } from "@/components/pool/coin-card";
+import { PoolSummaryCard } from "@/components/pool/pool-summary-card";
+import { PoolTabs } from "@/components/pool/pool-tabs";
 import { RankingTable } from "@/components/pool/ranking-table";
 import { StatusBar } from "@/components/layout/status-bar";
 import { clientFetcher } from "@/lib/api";
-import type { CoinSummary, StatusResponse, WinlongListResponse } from "@/lib/types";
+import { buildFallbackPoolSummaries, sortCoinsByPool, type PoolKey } from "@/lib/pool-meta";
+import type { CoinSummary, PoolSummary, StatusResponse, WinlongListResponse } from "@/lib/types";
 import { useWatchlistStore } from "@/store/watchlist-store";
 
-export type FilterKey = "all" | "favorites" | "momentum" | "liquidity" | "ai" | "movers";
+export type FilterKey = "all" | "favorites" | "score80" | "directional" | "ai" | "movers";
 
 const filters: Array<{ key: FilterKey; label: string }> = [
   { key: "all", label: "全部" },
   { key: "favorites", label: "自选" },
-  { key: "momentum", label: "动量强" },
-  { key: "liquidity", label: "高流动" },
+  { key: "score80", label: "分数 > 80" },
+  { key: "directional", label: "方向明确" },
   { key: "ai", label: "AI 主题" },
   { key: "movers", label: "排名上升" },
 ];
+
+function hasDirection(coin: CoinSummary, pool: PoolKey) {
+  if (pool === "momentum") {
+    return Boolean(coin.momentumDirection);
+  }
+  if (pool === "meanReversion") {
+    return Boolean(coin.meanReversionDirection);
+  }
+  if (pool === "lsGame") {
+    return Boolean(coin.lsGameDirection);
+  }
+  return true;
+}
 
 export function buildVisibleCoins(
   coins: CoinSummary[],
   search: string,
   filter: FilterKey,
   favorites: string[],
+  activePool: PoolKey,
 ): CoinSummary[] {
   const keyword = search.trim().toLowerCase();
 
@@ -37,16 +54,21 @@ export function buildVisibleCoins(
       coin.nameZh.toLowerCase().includes(keyword) ||
       coin.tags.some((tag) => tag.toLowerCase().includes(keyword));
 
+    const poolScore = coin.poolScores[activePool] ?? coin.primaryScore ?? 0;
     const matchesFilter =
       filter === "all" ||
       (filter === "favorites" && favorites.includes(coin.symbol)) ||
-      (filter === "momentum" && coin.factors.momentum >= 85) ||
-      (filter === "liquidity" && coin.factors.liquidity >= 85) ||
+      (filter === "score80" && poolScore >= 80) ||
+      (filter === "directional" && hasDirection(coin, activePool)) ||
       (filter === "ai" && coin.tags.includes("ai")) ||
       (filter === "movers" && coin.rankChange > 0);
 
     return matchesSearch && matchesFilter;
   });
+}
+
+function normalizePools(list: WinlongListResponse["data"]): PoolSummary[] {
+  return list.pools.length > 0 ? list.pools : buildFallbackPoolSummaries(list.coins);
 }
 
 export function RankingExplorer({
@@ -58,6 +80,7 @@ export function RankingExplorer({
 }) {
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
+  const [activePool, setActivePool] = useState<PoolKey>("momentum");
   const favorites = useWatchlistStore((state) => state.symbols);
 
   const { data: listResponse } = useSWR<WinlongListResponse>(
@@ -78,21 +101,30 @@ export function RankingExplorer({
     revalidateIfStale: false,
   });
 
-  const coins = listResponse?.data.coins ?? initialList.coins;
+  const listData = listResponse?.data ?? initialList;
+  const coins = listData.coins;
   const status = statusResponse?.data ?? initialStatus;
+  const pools = useMemo(() => normalizePools(listData), [listData]);
+  const activeSummary = pools.find((pool) => pool.key === activePool) ?? pools[0];
+  const poolCoins = useMemo(() => sortCoinsByPool(coins, activePool), [activePool, coins]);
   const visibleCoins = useMemo(
-    () => buildVisibleCoins(coins, search, activeFilter, favorites),
-    [activeFilter, coins, favorites, search],
+    () => buildVisibleCoins(poolCoins, search, activeFilter, favorites, activePool),
+    [activeFilter, activePool, favorites, poolCoins, search],
   );
 
   return (
     <main className="page-shell space-y-6">
       <StatusBar overview={status.overview} />
+      <PoolTabs pools={pools} activePool={activePool} onSelect={setActivePool} />
+      {activeSummary ? <PoolSummaryCard summary={activeSummary} overview={status.overview} /> : null}
 
       <section className="space-y-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-slate-100">AI 排行 · Top {visibleCoins.length}</h2>
+            <h2 className="text-2xl font-semibold text-slate-100">
+              {activeSummary?.name ?? "币种池"} · Top {visibleCoins.length}
+            </h2>
+            <p className="mt-2 text-sm text-slate-400">每个池只消费后端已算好的池分、方向和入池理由，不在前端现场重算。</p>
           </div>
           <input
             value={search}
@@ -122,11 +154,11 @@ export function RankingExplorer({
 
         <div className="grid gap-4 lg:hidden">
           {visibleCoins.map((coin) => (
-            <CoinCard key={coin.symbol} coin={coin} />
+            <CoinCard key={coin.symbol} coin={coin} activePool={activePool} />
           ))}
         </div>
 
-        <RankingTable coins={visibleCoins} />
+        <RankingTable coins={visibleCoins} activePool={activePool} />
       </section>
     </main>
   );

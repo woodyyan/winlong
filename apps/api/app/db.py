@@ -233,6 +233,8 @@ def _seed_database(conn: sqlite3.Connection) -> None:
     _insert_sources(conn, payload["sources"])
     _insert_logs(conn, payload["logs"])
     _insert_overview(conn, payload["overview"])
+    _insert_market_features(conn, payload["features"])
+    _insert_pool_scores(conn, payload["poolScores"])
 
 
 def _insert_coins(conn: sqlite3.Connection, coins: Iterable[dict]) -> None:

@@ -32,8 +32,23 @@ class CoinSummary(BaseModel):
     primaryScore: float | None = None
     poolScores: dict[str, float] = Field(default_factory=dict)
     reasonTags: list[str] = Field(default_factory=list)
+    momentumDirection: str | None = None
+    meanReversionDirection: str | None = None
+    lsGameDirection: str | None = None
     tags: list[str]
     updatedAt: str
+
+
+class PoolSummary(BaseModel):
+    key: str
+    name: str
+    shortName: str
+    description: str
+    count: int
+    avgScore: float
+    leaderSymbol: str | None = None
+    leaderScore: float | None = None
+    leaderDirection: str | None = None
 
 
 class WinlongListData(BaseModel):
@@ -41,6 +56,7 @@ class WinlongListData(BaseModel):
     totalCoins: int
     returnedCount: int
     dataQuality: str
+    pools: list[PoolSummary] = Field(default_factory=list)
     coins: list[CoinSummary]
 
 

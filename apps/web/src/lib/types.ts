@@ -29,8 +29,23 @@ export interface CoinSummary {
   primaryScore?: number | null;
   poolScores: Partial<Record<"momentum" | "trend" | "meanReversion" | "lsGame", number>>;
   reasonTags: string[];
+  momentumDirection?: string | null;
+  meanReversionDirection?: string | null;
+  lsGameDirection?: string | null;
   tags: string[];
   updatedAt: string;
+}
+
+export interface PoolSummary {
+  key: "momentum" | "trend" | "meanReversion" | "lsGame";
+  name: string;
+  shortName: string;
+  description: string;
+  count: number;
+  avgScore: number;
+  leaderSymbol: string | null;
+  leaderScore: number | null;
+  leaderDirection: string | null;
 }
 
 export interface SubFactor {
@@ -85,6 +100,7 @@ export interface WinlongListData {
   totalCoins: number;
   returnedCount: number;
   dataQuality: string;
+  pools: PoolSummary[];
   coins: CoinSummary[];
 }
 

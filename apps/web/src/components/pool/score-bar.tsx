@@ -7,13 +7,13 @@ const toneMap = {
   poor: "bg-rose-500",
 };
 
-export function ScoreBar({ score }: { score: number }) {
+export function ScoreBar({ score, label = "AI 评分" }: { score: number; label?: string }) {
   const tone = getScoreTone(score);
 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between text-xs text-slate-400">
-        <span>AI 评分</span>
+        <span>{label}</span>
         <span className="font-mono text-sm font-semibold text-slate-100">{score.toFixed(1)}</span>
       </div>
       <div className="score-track h-2 overflow-hidden rounded-full">

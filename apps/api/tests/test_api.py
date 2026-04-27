@@ -37,6 +37,25 @@ def test_list_default_payload(client: TestClient):
     assert payload["data"]["coins"][0]["symbol"] == "BTCUSDT"
     assert payload["data"]["coins"][0]["rank"] == 1
 
+def test_list_includes_pool_summaries_and_direction_fields(client: TestClient):
+    response = client.get("/api/winlong/list")
+    assert response.status_code == 200
+    data = response.json()["data"]
+
+    assert len(data["pools"]) == 4
+    assert data["pools"][0]["key"] == "momentum"
+    assert data["pools"][0]["name"] == "冲浪池"
+    assert data["pools"][0]["count"] == data["totalCoins"]
+    assert data["pools"][0]["leaderSymbol"] is not None
+    assert isinstance(data["pools"][0]["avgScore"], float)
+
+    coin = data["coins"][0]
+    assert coin["primaryPool"] in {"momentum", "trend", "meanReversion", "lsGame"}
+    assert set(coin["poolScores"].keys()) == {"momentum", "trend", "meanReversion", "lsGame"}
+    assert "momentumDirection" in coin
+    assert "meanReversionDirection" in coin
+    assert "lsGameDirection" in coin
+
 
 def test_list_can_sort_by_score_desc(client: TestClient):
     response = client.get("/api/winlong/list?sort_by=score&order=desc&limit=3")
@@ -84,6 +103,18 @@ def test_coin_detail_contains_factor_details(client: TestClient):
     assert len(payload["factorDetails"]) == 4
     assert payload["derivatives"]["hasFutures"] is True
     assert len(payload["derivatives"]["recentFundingRates"]) == 6
+
+def test_coin_detail_contains_pool_direction_fields(client: TestClient):
+    response = client.get("/api/winlong/coins/ETHUSDT")
+    assert response.status_code == 200
+    coin = response.json()["data"]["coin"]
+
+    assert coin["primaryPool"] in {"momentum", "trend", "meanReversion", "lsGame"}
+    assert len(coin["reasonTags"]) >= 1
+    assert set(coin["poolScores"].keys()) == {"momentum", "trend", "meanReversion", "lsGame"}
+    assert "momentumDirection" in coin
+    assert "meanReversionDirection" in coin
+    assert "lsGameDirection" in coin
 
 
 def test_coin_detail_for_missing_symbol_returns_404(client: TestClient):

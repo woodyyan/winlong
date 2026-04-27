@@ -13,6 +13,33 @@ class CoinNotFoundError(Exception):
 
 
 class WinlongService:
+    POOL_CONFIG = {
+        "momentum": {
+            "name": "冲浪池",
+            "shortName": "Momentum",
+            "description": "抓 OI 与波动同步放大的高活跃币。",
+            "directionField": "momentum_direction",
+        },
+        "trend": {
+            "name": "趋势池",
+            "shortName": "Trend",
+            "description": "筛选相关性稳定、资金结构健康的趋势币。",
+            "directionField": None,
+        },
+        "meanReversion": {
+            "name": "逆势池",
+            "shortName": "Reversion",
+            "description": "寻找情绪极值和 OI 释放后的反弹机会。",
+            "directionField": "mean_reversion_direction",
+        },
+        "lsGame": {
+            "name": "博弈池",
+            "shortName": "Squeeze",
+            "description": "寻找多空拥挤和潜在挤兑方向。",
+            "directionField": "ls_game_direction",
+        },
+    }
+
     ALLOWED_SORT_FIELDS = {
         "rank": "rank",
         "score": "total_score",
@@ -60,7 +87,8 @@ class WinlongService:
             pool_score_rows = conn.execute(
                 """
                 SELECT symbol, momentum_score, trend_score, mean_reversion_score,
-                       ls_game_score, primary_pool, primary_score, reason_tags
+                       ls_game_score, primary_pool, primary_score, reason_tags,
+                       momentum_direction, mean_reversion_direction, ls_game_direction
                 FROM pool_scores
                 """
             ).fetchall()
@@ -91,6 +119,7 @@ class WinlongService:
                 "totalCoins": total,
                 "returnedCount": len(rows),
                 "dataQuality": overview["data_quality"],
+                "pools": self._build_pool_summaries(pool_score_rows),
                 "coins": [self._serialize_coin(row, pool_score_map.get(row["symbol"])) for row in rows],
             },
         }
@@ -101,7 +130,8 @@ class WinlongService:
             pool_score_row = conn.execute(
                 """
                 SELECT symbol, momentum_score, trend_score, mean_reversion_score,
-                       ls_game_score, primary_pool, primary_score, reason_tags
+                       ls_game_score, primary_pool, primary_score, reason_tags,
+                       momentum_direction, mean_reversion_direction, ls_game_direction
                 FROM pool_scores
                 WHERE symbol = ?
                 ORDER BY score_time DESC
@@ -280,9 +310,54 @@ class WinlongService:
             "primaryScore": pool_score_row["primary_score"] if pool_score_row else None,
             "poolScores": pool_scores,
             "reasonTags": reason_tags,
+            "momentumDirection": pool_score_row["momentum_direction"] if pool_score_row else None,
+            "meanReversionDirection": pool_score_row["mean_reversion_direction"] if pool_score_row else None,
+            "lsGameDirection": pool_score_row["ls_game_direction"] if pool_score_row else None,
             "tags": json.loads(row["tags"]),
             "updatedAt": row["updated_at"],
         }
+
+    def _build_pool_summaries(self, rows: list[sqlite3.Row]) -> list[dict]:
+        summaries: list[dict] = []
+        for pool_key, config in self.POOL_CONFIG.items():
+            score_column = self._pool_score_column(pool_key)
+            direction_field = config["directionField"]
+            ranked_rows = sorted(rows, key=lambda row: row[score_column], reverse=True)
+            if ranked_rows:
+                avg_score = round(sum(row[score_column] for row in ranked_rows) / len(ranked_rows), 1)
+                leader = ranked_rows[0]
+                leader_symbol = leader["symbol"]
+                leader_score = leader[score_column]
+                leader_direction = leader[direction_field] if direction_field else None
+            else:
+                avg_score = 0.0
+                leader_symbol = None
+                leader_score = None
+                leader_direction = None
+
+            summaries.append(
+                {
+                    "key": pool_key,
+                    "name": config["name"],
+                    "shortName": config["shortName"],
+                    "description": config["description"],
+                    "count": len(ranked_rows),
+                    "avgScore": avg_score,
+                    "leaderSymbol": leader_symbol,
+                    "leaderScore": leader_score,
+                    "leaderDirection": leader_direction,
+                }
+            )
+
+        return summaries
+
+    def _pool_score_column(self, pool_key: str) -> str:
+        return {
+            "momentum": "momentum_score",
+            "trend": "trend_score",
+            "meanReversion": "mean_reversion_score",
+            "lsGame": "ls_game_score",
+        }[pool_key]
 
     def _serialize_market_features(self, row: sqlite3.Row | None) -> dict | None:
         if row is None:
