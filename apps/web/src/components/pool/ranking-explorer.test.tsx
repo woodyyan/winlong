@@ -189,4 +189,23 @@ describe("RankingExplorer", () => {
     expect(screen.getByRole("heading", { name: "趋势池 · Top 1" })).toBeInTheDocument();
     expect(screen.getByText("比特币")).toBeInTheDocument();
   });
+
+  it("shows a stronger selected state on the active pool tab", async () => {
+    const user = userEvent.setup();
+    render(<RankingExplorer initialList={listFixture} initialStatus={statusFixture} />);
+
+    const momentumTab = screen.getByRole("button", { name: /冲浪池/i });
+    const trendTab = screen.getByRole("button", { name: /趋势池/i });
+
+    expect(momentumTab).toHaveAttribute("aria-pressed", "true");
+    expect(momentumTab.className).toContain("-translate-y-1");
+    expect(momentumTab.className).toContain("bg-[linear-gradient");
+    expect(trendTab).toHaveAttribute("aria-pressed", "false");
+
+    await user.click(trendTab);
+
+    expect(trendTab).toHaveAttribute("aria-pressed", "true");
+    expect(trendTab.className).toContain("-translate-y-1");
+    expect(momentumTab).toHaveAttribute("aria-pressed", "false");
+  });
 });
