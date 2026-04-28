@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { sortCoinsByPool } from "@/lib/pool-meta";
+import { buildFallbackPoolSummaries, sortCoinsByPool } from "@/lib/pool-meta";
 import type { CoinSummary } from "@/lib/types";
 
 const coins: CoinSummary[] = [
@@ -66,5 +66,15 @@ describe("sortCoinsByPool", () => {
   it("sorts by active pool score instead of global rank", () => {
     expect(sortCoinsByPool(coins, "momentum").map((coin) => coin.symbol)).toEqual(["BTCUSDT", "TAOUSDT"]);
     expect(sortCoinsByPool(coins, "meanReversion").map((coin) => coin.symbol)).toEqual(["TAOUSDT", "BTCUSDT"]);
+  });
+});
+
+describe("buildFallbackPoolSummaries", () => {
+  it("counts only primary pool members", () => {
+    const summaries = buildFallbackPoolSummaries(coins);
+
+    expect(summaries.find((summary) => summary.key === "momentum")?.count).toBe(1);
+    expect(summaries.find((summary) => summary.key === "meanReversion")?.count).toBe(1);
+    expect(summaries.find((summary) => summary.key === "trend")?.count).toBe(0);
   });
 });

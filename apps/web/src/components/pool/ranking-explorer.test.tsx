@@ -140,13 +140,13 @@ const statusFixture: StatusResponse["data"] = {
 
 describe("buildVisibleCoins", () => {
   it("filters by search and ai tag within active pool", () => {
-    expect(buildVisibleCoins(coinFixtures, "tao", "all", [], "momentum").map((coin) => coin.symbol)).toEqual(["TAOUSDT"]);
-    expect(buildVisibleCoins(coinFixtures, "", "ai", [], "momentum").map((coin) => coin.symbol)).toEqual(["TAOUSDT"]);
+    expect(buildVisibleCoins(coinFixtures, "tao", "all", [], "momentum").map((coin) => coin.symbol)).toEqual([]);
+    expect(buildVisibleCoins(coinFixtures, "", "ai", [], "momentum").map((coin) => coin.symbol)).toEqual([]);
   });
 
   it("filters by score, direction, and favorites using pool-specific fields", () => {
     expect(buildVisibleCoins(coinFixtures, "", "score80", [], "meanReversion").map((coin) => coin.symbol)).toEqual(["TAOUSDT"]);
-    expect(buildVisibleCoins(coinFixtures, "", "directional", [], "meanReversion").map((coin) => coin.symbol)).toEqual(["BTCUSDT", "TAOUSDT"]);
+    expect(buildVisibleCoins(coinFixtures, "", "directional", [], "meanReversion").map((coin) => coin.symbol)).toEqual(["TAOUSDT"]);
     expect(buildVisibleCoins(coinFixtures, "", "favorites", ["BTCUSDT"], "momentum").map((coin) => coin.symbol)).toEqual(["BTCUSDT"]);
   });
 });
@@ -160,10 +160,10 @@ describe("RankingExplorer", () => {
     const user = userEvent.setup();
     render(<RankingExplorer initialList={listFixture} initialStatus={statusFixture} />);
 
-    expect(screen.getByRole("heading", { name: "冲浪池 · Top 2" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "冲浪池 · Top 1" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /逆势池/i }));
 
-    expect(screen.getByRole("heading", { name: "逆势池 · Top 2" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "逆势池 · Top 1" })).toBeInTheDocument();
     expect(screen.getByText("比特张量")).toBeInTheDocument();
   });
 
@@ -174,7 +174,17 @@ describe("RankingExplorer", () => {
     const input = screen.getByPlaceholderText("搜索币种或标签");
     await user.type(input, "tao");
 
+    expect(screen.getByRole("heading", { name: "冲浪池 · Top 0" })).toBeInTheDocument();
+  });
+
+  it("shows only primary members for the selected pool", async () => {
+    const user = userEvent.setup();
+    render(<RankingExplorer initialList={listFixture} initialStatus={statusFixture} />);
+
     expect(screen.getByRole("heading", { name: "冲浪池 · Top 1" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /逆势池/i }));
+
+    expect(screen.getByRole("heading", { name: "逆势池 · Top 1" })).toBeInTheDocument();
     expect(screen.getByText("比特张量")).toBeInTheDocument();
   });
 });

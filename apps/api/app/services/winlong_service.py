@@ -322,7 +322,8 @@ class WinlongService:
         for pool_key, config in self.POOL_CONFIG.items():
             score_column = self._pool_score_column(pool_key)
             direction_field = config["directionField"]
-            ranked_rows = sorted(rows, key=lambda row: row[score_column], reverse=True)
+            pool_rows = [row for row in rows if row["primary_pool"] == pool_key]
+            ranked_rows = sorted(pool_rows, key=lambda row: row[score_column], reverse=True)
             if ranked_rows:
                 avg_score = round(sum(row[score_column] for row in ranked_rows) / len(ranked_rows), 1)
                 leader = ranked_rows[0]

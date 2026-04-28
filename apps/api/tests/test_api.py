@@ -45,8 +45,9 @@ def test_list_includes_pool_summaries_and_direction_fields(client: TestClient):
     assert len(data["pools"]) == 4
     assert data["pools"][0]["key"] == "momentum"
     assert data["pools"][0]["name"] == "冲浪池"
-    assert data["pools"][0]["count"] == data["totalCoins"]
-    assert data["pools"][0]["leaderSymbol"] is not None
+    assert sum(pool["count"] for pool in data["pools"]) == data["totalCoins"]
+    assert all(pool["count"] <= data["totalCoins"] for pool in data["pools"])
+    assert any(pool["leaderSymbol"] is not None for pool in data["pools"])
     assert isinstance(data["pools"][0]["avgScore"], float)
 
     coin = data["coins"][0]
@@ -93,6 +94,19 @@ def test_list_filter_by_offset(client: TestClient):
     coins = response.json()["data"]["coins"]
     assert len(coins) == 2
     assert coins[0]["rank"] == 3
+
+
+def test_pool_summaries_only_count_primary_members(client: TestClient):
+    response = client.get("/api/winlong/list")
+    assert response.status_code == 200
+    data = response.json()["data"]
+
+    counts = {pool["key"]: pool["count"] for pool in data["pools"]}
+    primary_counts = {pool_key: 0 for pool_key in counts}
+    for coin in data["coins"]:
+        primary_counts[coin["primaryPool"]] += 1
+
+    assert counts == primary_counts
 
 
 def test_coin_detail_contains_factor_details(client: TestClient):
