@@ -13,7 +13,7 @@ import { ScoreBar } from "@/components/pool/score-bar";
 const helper = createColumnHelper<CoinSummary>();
 
 function createColumns(activePool: PoolKey) {
-  const scoreLabel = activePool === "momentum" ? "冲浪分" : activePool === "trend" ? "趋势分" : activePool === "meanReversion" ? "逆势分" : "博弈分";
+  const scoreLabel = "评分";
 
   return [
     helper.display({
