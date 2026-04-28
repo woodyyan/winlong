@@ -5,6 +5,12 @@ from math import isfinite
 
 class PoolScoringService:
     POOL_NAMES = ("momentum", "trend", "meanReversion", "lsGame")
+    POOL_ENTRY_THRESHOLDS = {
+        "momentum": 55.0,
+        "trend": 60.0,
+        "meanReversion": 55.0,
+        "lsGame": 55.0,
+    }
 
     def build_features_and_scores(self, rows: list[dict]) -> tuple[list[dict], list[dict], list[dict]]:
         features = [self._build_feature(row) for row in rows]
@@ -23,6 +29,7 @@ class PoolScoringService:
                 "meanReversion": feature["meanReversionScore"],
                 "lsGame": feature["lsGameScore"],
             }
+            row["poolMemberships"] = feature["poolMemberships"]
             row["reasonTags"] = feature["reasonTags"]
             scored_rows.append(row)
             pool_scores.append(
@@ -38,6 +45,7 @@ class PoolScoringService:
                     "lsGameDirection": feature["lsGameDirection"],
                     "primaryPool": feature["primaryPool"],
                     "primaryScore": feature["primaryScore"],
+                    "poolMemberships": feature["poolMemberships"],
                     "reasonTags": feature["reasonTags"],
                 }
             )
@@ -182,7 +190,27 @@ class PoolScoringService:
             feature["lsGameDirection"] = self._ls_game_direction(feature)
             feature["primaryPool"] = primary_pool
             feature["primaryScore"] = pool_map[primary_pool]
+            feature["poolMemberships"] = self.memberships_from_pool_scores(pool_map, primary_pool=primary_pool)
             feature["reasonTags"] = self._build_reason_tags(feature, primary_pool)
+
+    @classmethod
+    def memberships_from_pool_scores(
+        cls,
+        pool_scores: dict[str, float],
+        *,
+        primary_pool: str | None = None,
+    ) -> list[str]:
+        memberships = [
+            pool
+            for pool in cls.POOL_NAMES
+            if pool_scores.get(pool, 0.0) >= cls.POOL_ENTRY_THRESHOLDS[pool]
+        ]
+        if memberships:
+            return memberships
+
+        if primary_pool is None and pool_scores:
+            primary_pool = max(cls.POOL_NAMES, key=lambda pool: (pool_scores.get(pool, 0.0), -cls.POOL_NAMES.index(pool)))
+        return [primary_pool] if primary_pool else []
 
     def _percentile_map(self, values: list[float], *, higher_is_better: bool = True) -> dict[float, float]:
         if not values:

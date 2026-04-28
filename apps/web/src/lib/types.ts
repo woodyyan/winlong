@@ -27,6 +27,7 @@ export interface CoinSummary {
   longShortRatio: number | null;
   primaryPool?: "momentum" | "trend" | "meanReversion" | "lsGame" | null;
   primaryScore?: number | null;
+  poolMemberships: Array<"momentum" | "trend" | "meanReversion" | "lsGame">;
   poolScores: Partial<Record<"momentum" | "trend" | "meanReversion" | "lsGame", number>>;
   reasonTags: string[];
   momentumDirection?: string | null;

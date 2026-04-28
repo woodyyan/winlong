@@ -30,6 +30,7 @@ class CoinSummary(BaseModel):
     longShortRatio: float | None = None
     primaryPool: str | None = None
     primaryScore: float | None = None
+    poolMemberships: list[str] = Field(default_factory=list)
     poolScores: dict[str, float] = Field(default_factory=dict)
     reasonTags: list[str] = Field(default_factory=list)
     momentumDirection: str | None = None

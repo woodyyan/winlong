@@ -45,13 +45,15 @@ def test_list_includes_pool_summaries_and_direction_fields(client: TestClient):
     assert len(data["pools"]) == 4
     assert data["pools"][0]["key"] == "momentum"
     assert data["pools"][0]["name"] == "冲浪池"
-    assert sum(pool["count"] for pool in data["pools"]) == data["totalCoins"]
-    assert all(pool["count"] <= data["totalCoins"] for pool in data["pools"])
+    assert sum(pool["count"] for pool in data["pools"]) >= data["totalCoins"]
+    assert all(pool["count"] >= 0 for pool in data["pools"])
     assert any(pool["leaderSymbol"] is not None for pool in data["pools"])
     assert isinstance(data["pools"][0]["avgScore"], float)
 
     coin = data["coins"][0]
     assert coin["primaryPool"] in {"momentum", "trend", "meanReversion", "lsGame"}
+    assert len(coin["poolMemberships"]) >= 1
+    assert coin["primaryPool"] in coin["poolMemberships"]
     assert set(coin["poolScores"].keys()) == {"momentum", "trend", "meanReversion", "lsGame"}
     assert "momentumDirection" in coin
     assert "meanReversionDirection" in coin
@@ -96,17 +98,19 @@ def test_list_filter_by_offset(client: TestClient):
     assert coins[0]["rank"] == 3
 
 
-def test_pool_summaries_only_count_primary_members(client: TestClient):
+def test_pool_summaries_count_overlapping_memberships(client: TestClient):
     response = client.get("/api/winlong/list")
     assert response.status_code == 200
     data = response.json()["data"]
 
     counts = {pool["key"]: pool["count"] for pool in data["pools"]}
-    primary_counts = {pool_key: 0 for pool_key in counts}
+    membership_counts = {pool_key: 0 for pool_key in counts}
     for coin in data["coins"]:
-        primary_counts[coin["primaryPool"]] += 1
+        for pool_key in coin["poolMemberships"]:
+            membership_counts[pool_key] += 1
 
-    assert counts == primary_counts
+    assert counts == membership_counts
+    assert sum(counts.values()) >= data["totalCoins"]
 
 
 def test_coin_detail_contains_factor_details(client: TestClient):
@@ -124,6 +128,8 @@ def test_coin_detail_contains_pool_direction_fields(client: TestClient):
     coin = response.json()["data"]["coin"]
 
     assert coin["primaryPool"] in {"momentum", "trend", "meanReversion", "lsGame"}
+    assert len(coin["poolMemberships"]) >= 1
+    assert coin["primaryPool"] in coin["poolMemberships"]
     assert len(coin["reasonTags"]) >= 1
     assert set(coin["poolScores"].keys()) == {"momentum", "trend", "meanReversion", "lsGame"}
     assert "momentumDirection" in coin
@@ -259,6 +265,8 @@ async def test_market_sync_service_builds_runtime_dataset(monkeypatch: pytest.Mo
     assert payload["coins"][0]["symbol"] == "BTCUSDT"
     assert payload["coins"][0]["marketCap"] > 0
     assert payload["coins"][0]["primaryPool"] in {"momentum", "trend", "meanReversion", "lsGame"}
+    assert len(payload["coins"][0]["poolMemberships"]) >= 1
+    assert payload["coins"][0]["primaryPool"] in payload["coins"][0]["poolMemberships"]
     assert set(payload["coins"][0]["poolScores"].keys()) == {"momentum", "trend", "meanReversion", "lsGame"}
     assert len(payload["coins"][0]["reasonTags"]) == 3
     assert len(payload["factorRows"]) > 0
@@ -311,6 +319,8 @@ def test_replace_runtime_dataset_sets_runtime_status(tmp_path: Path):
     assert status["runtimeData"] is True
     assert status["poolSize"] == 1
     assert coin["primaryPool"] in {"momentum", "trend", "meanReversion", "lsGame"}
+    assert len(coin["poolMemberships"]) >= 1
+    assert coin["primaryPool"] in coin["poolMemberships"]
     assert set(coin["poolScores"].keys()) == {"momentum", "trend", "meanReversion", "lsGame"}
     assert len(coin["reasonTags"]) == 3
     assert detail["marketFeatures"] is not None
@@ -352,6 +362,7 @@ def test_runtime_payload_survives_missing_optional_metrics(tmp_path: Path):
     detail = runtime_client.get_coin_detail("ETHUSDT")["data"]
 
     assert detail["coin"]["primaryPool"] in {"momentum", "trend", "meanReversion", "lsGame"}
+    assert detail["coin"]["primaryPool"] in detail["coin"]["poolMemberships"]
     assert detail["coin"]["poolScores"][detail["coin"]["primaryPool"]] == detail["coin"]["primaryScore"]
     assert detail["marketFeatures"]["fundingRateMean24h"] == 0.0
     assert detail["marketFeatures"]["longShortRatioStability"] == 0.0
@@ -479,6 +490,7 @@ def test_pool_scoring_service_assigns_expected_primary_pool():
     primary_map = {row["symbol"]: row["primaryPool"] for row in pool_scores}
     reason_map = {row["symbol"]: row["reasonTags"] for row in pool_scores}
     feature_map = {row["symbol"]: row for row in features}
+    membership_map = {row["symbol"]: row["poolMemberships"] for row in features}
 
     assert primary_map == {
         "MOMUSDT": "momentum",
@@ -487,9 +499,76 @@ def test_pool_scoring_service_assigns_expected_primary_pool():
         "LSGUSDT": "lsGame",
     }
     assert feature_map["TRDUSDT"]["trendScore"] > feature_map["TRDUSDT"]["momentumScore"]
+    assert membership_map["MOMUSDT"][0] == "momentum"
+    assert "trend" in membership_map["MOMUSDT"]
+    assert "trend" in membership_map["TRDUSDT"]
     assert feature_map["REVUSDT"]["meanReversionDirection"] == "rebound-long"
     assert feature_map["LSGUSDT"]["lsGameDirection"] == "short-squeeze candidate"
     assert len(reason_map["MOMUSDT"]) == 3
+
+
+def test_merge_market_rows_allows_non_registry_symbol_with_market_cap():
+    service = MarketSyncService()
+    rows = service._merge_market_rows(  # noqa: SLF001
+        spot_symbols={"BTC", "FART"},
+        futures_symbols={"BTC", "FART"},
+        spot_tickers=[
+            {"symbol": "BTCUSDT", "lastPrice": "65000", "priceChangePercent": "3.5", "quoteVolume": "20000000000"},
+            {"symbol": "FARTUSDT", "lastPrice": "1.2", "priceChangePercent": "12.0", "quoteVolume": "150000000"},
+        ],
+        futures_tickers=[
+            {"symbol": "BTCUSDT", "openInterest": "120000"},
+            {"symbol": "FARTUSDT", "openInterest": "2500000"},
+        ],
+        premium_index=[
+            {"symbol": "BTCUSDT", "markPrice": "65100", "lastFundingRate": "0.0001", "time": "1713705600000"},
+            {"symbol": "FARTUSDT", "markPrice": "1.21", "lastFundingRate": "0.0004", "time": "1713705600000"},
+        ],
+        market_caps={
+            "BTC": {"marketCap": 1200000000000.0, "name": "Bitcoin", "coingeckoId": "bitcoin"},
+            "FART": {"marketCap": 25000000.0, "name": "Fartcoin", "coingeckoId": "fartcoin"},
+        },
+    )
+
+    fart_row = next(row for row in rows if row["symbol"] == "FARTUSDT")
+    assert fart_row["name"] == "Fartcoin"
+    assert fart_row["nameZh"] == "Fartcoin"
+    assert fart_row["logoText"] == "FART"
+    assert fart_row["tags"] == []
+    assert fart_row["marketCap"] == 25000000.0
+
+
+def test_merge_market_rows_uses_top_100_by_quote_volume():
+    service = MarketSyncService()
+    spot_symbols = {f"C{index:03d}" for index in range(105)}
+    futures_symbols = set(spot_symbols)
+    spot_tickers = []
+    futures_tickers = []
+    premium_index = []
+    market_caps = {}
+
+    for index in range(105):
+        base_asset = f"C{index:03d}"
+        symbol = f"{base_asset}USDT"
+        spot_tickers.append(
+            {"symbol": symbol, "lastPrice": "1.0", "priceChangePercent": "1.0", "quoteVolume": str(1000000 + index)}
+        )
+        futures_tickers.append({"symbol": symbol, "openInterest": "1000"})
+        premium_index.append({"symbol": symbol, "markPrice": "1.0", "lastFundingRate": "0.0001", "time": "1713705600000"})
+        market_caps[base_asset] = {"marketCap": 20000000.0, "name": base_asset, "coingeckoId": base_asset.lower()}
+
+    rows = service._merge_market_rows(  # noqa: SLF001
+        spot_symbols=spot_symbols,
+        futures_symbols=futures_symbols,
+        spot_tickers=spot_tickers,
+        futures_tickers=futures_tickers,
+        premium_index=premium_index,
+        market_caps=market_caps,
+    )
+
+    assert len(rows) == 100
+    assert rows[0]["symbol"] == "C104USDT"
+    assert rows[-1]["symbol"] == "C005USDT"
 
 
 def test_pool_scoring_service_handles_single_row_universe():
@@ -514,6 +593,7 @@ def test_pool_scoring_service_handles_single_row_universe():
     assert len(features) == 1
     assert len(pool_scores) == 1
     assert scored_rows[0]["primaryPool"] in {"momentum", "trend", "meanReversion", "lsGame"}
+    assert scored_rows[0]["primaryPool"] in scored_rows[0]["poolMemberships"]
     assert all(0 <= score <= 100 for score in scored_rows[0]["poolScores"].values())
     assert len(scored_rows[0]["reasonTags"]) == 3
 

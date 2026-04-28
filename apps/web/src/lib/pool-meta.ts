@@ -46,7 +46,7 @@ export function getPoolDirection(coin: CoinSummary, pool: PoolKey): string | nul
 
 export function buildFallbackPoolSummaries(coins: CoinSummary[]): PoolSummary[] {
   return POOL_ORDER.map((pool) => {
-    const members = coins.filter((coin) => coin.primaryPool === pool);
+    const members = coins.filter((coin) => coin.poolMemberships.includes(pool));
     const ranked = sortCoinsByPool(members, pool);
     const leader = ranked[0];
     return {

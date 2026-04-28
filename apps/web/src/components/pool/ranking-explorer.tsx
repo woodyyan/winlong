@@ -43,7 +43,7 @@ export function buildVisibleCoins(
   favorites: string[],
   activePool: PoolKey,
 ): CoinSummary[] {
-  const poolMembers = coins.filter((coin) => coin.primaryPool === activePool);
+  const poolMembers = coins.filter((coin) => coin.poolMemberships.includes(activePool));
   const keyword = search.trim().toLowerCase();
 
   return poolMembers.filter((coin) => {

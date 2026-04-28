@@ -24,6 +24,7 @@ const coins: CoinSummary[] = [
     longShortRatio: 1.85,
     primaryPool: "momentum",
     primaryScore: 92.4,
+    poolMemberships: ["momentum", "trend"],
     poolScores: { momentum: 92.4, trend: 78.1, meanReversion: 31.5, lsGame: 44.2 },
     reasonTags: ["OI 与波动共振"],
     momentumDirection: "long continuation",
@@ -52,6 +53,7 @@ const coins: CoinSummary[] = [
     longShortRatio: null,
     primaryPool: "meanReversion",
     primaryScore: 84.8,
+    poolMemberships: ["meanReversion", "lsGame"],
     poolScores: { momentum: 54.2, trend: 49.1, meanReversion: 84.8, lsGame: 52.4 },
     reasonTags: ["超跌偏离"],
     momentumDirection: null,
@@ -70,11 +72,12 @@ describe("sortCoinsByPool", () => {
 });
 
 describe("buildFallbackPoolSummaries", () => {
-  it("counts only primary pool members", () => {
+  it("counts overlapping memberships instead of only primary pool", () => {
     const summaries = buildFallbackPoolSummaries(coins);
 
     expect(summaries.find((summary) => summary.key === "momentum")?.count).toBe(1);
+    expect(summaries.find((summary) => summary.key === "trend")?.count).toBe(1);
     expect(summaries.find((summary) => summary.key === "meanReversion")?.count).toBe(1);
-    expect(summaries.find((summary) => summary.key === "trend")?.count).toBe(0);
+    expect(summaries.find((summary) => summary.key === "lsGame")?.count).toBe(1);
   });
 });

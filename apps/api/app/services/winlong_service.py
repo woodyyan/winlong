@@ -6,6 +6,7 @@ from pathlib import Path
 
 from app.config import settings
 from app.db import get_connection
+from app.services.pool_scoring_service import PoolScoringService
 
 
 class CoinNotFoundError(Exception):
@@ -281,7 +282,9 @@ class WinlongService:
             "meanReversion": pool_score_row["mean_reversion_score"],
             "lsGame": pool_score_row["ls_game_score"],
         } if pool_score_row else {}
+        primary_pool = pool_score_row["primary_pool"] if pool_score_row else None
         reason_tags = json.loads(pool_score_row["reason_tags"]) if pool_score_row else []
+        pool_memberships = PoolScoringService.memberships_from_pool_scores(pool_scores, primary_pool=primary_pool)
 
         return {
             "symbol": row["symbol"],
@@ -306,8 +309,9 @@ class WinlongService:
             "openInterest": row["open_interest"],
             "fundingRate": row["funding_rate"],
             "longShortRatio": row["long_short_ratio"],
-            "primaryPool": pool_score_row["primary_pool"] if pool_score_row else None,
+            "primaryPool": primary_pool,
             "primaryScore": pool_score_row["primary_score"] if pool_score_row else None,
+            "poolMemberships": pool_memberships,
             "poolScores": pool_scores,
             "reasonTags": reason_tags,
             "momentumDirection": pool_score_row["momentum_direction"] if pool_score_row else None,
@@ -319,11 +323,18 @@ class WinlongService:
 
     def _build_pool_summaries(self, rows: list[sqlite3.Row]) -> list[dict]:
         summaries: list[dict] = []
+        memberships_by_symbol = {
+            row["symbol"]: PoolScoringService.memberships_from_pool_scores(
+                self._row_pool_scores(row),
+                primary_pool=row["primary_pool"],
+            )
+            for row in rows
+        }
         for pool_key, config in self.POOL_CONFIG.items():
             score_column = self._pool_score_column(pool_key)
             direction_field = config["directionField"]
-            pool_rows = [row for row in rows if row["primary_pool"] == pool_key]
-            ranked_rows = sorted(pool_rows, key=lambda row: row[score_column], reverse=True)
+            pool_rows = [row for row in rows if pool_key in memberships_by_symbol[row["symbol"]]]
+            ranked_rows = sorted(pool_rows, key=lambda row: (row[score_column], row["primary_score"]), reverse=True)
             if ranked_rows:
                 avg_score = round(sum(row[score_column] for row in ranked_rows) / len(ranked_rows), 1)
                 leader = ranked_rows[0]
@@ -359,6 +370,14 @@ class WinlongService:
             "meanReversion": "mean_reversion_score",
             "lsGame": "ls_game_score",
         }[pool_key]
+
+    def _row_pool_scores(self, row: sqlite3.Row) -> dict[str, float]:
+        return {
+            "momentum": row["momentum_score"],
+            "trend": row["trend_score"],
+            "meanReversion": row["mean_reversion_score"],
+            "lsGame": row["ls_game_score"],
+        }
 
     def _serialize_market_features(self, row: sqlite3.Row | None) -> dict | None:
         if row is None:

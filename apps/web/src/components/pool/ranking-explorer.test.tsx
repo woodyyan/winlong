@@ -27,6 +27,7 @@ const coinFixtures: CoinSummary[] = [
     longShortRatio: 1.85,
     primaryPool: "momentum",
     primaryScore: 92.4,
+    poolMemberships: ["momentum", "trend"],
     poolScores: { momentum: 92.4, trend: 78.1, meanReversion: 31.5, lsGame: 44.2 },
     reasonTags: ["OI 与波动共振", "成交量持续放大", "资金费率健康"],
     momentumDirection: "long continuation",
@@ -55,6 +56,7 @@ const coinFixtures: CoinSummary[] = [
     longShortRatio: null,
     primaryPool: "meanReversion",
     primaryScore: 84.8,
+    poolMemberships: ["meanReversion", "lsGame"],
     poolScores: { momentum: 54.2, trend: 49.1, meanReversion: 84.8, lsGame: 52.4 },
     reasonTags: ["超跌偏离", "AI 主题活跃", "资金拥挤回落"],
     momentumDirection: null,
@@ -142,6 +144,7 @@ describe("buildVisibleCoins", () => {
   it("filters by search and ai tag within active pool", () => {
     expect(buildVisibleCoins(coinFixtures, "tao", "all", [], "momentum").map((coin) => coin.symbol)).toEqual([]);
     expect(buildVisibleCoins(coinFixtures, "", "ai", [], "momentum").map((coin) => coin.symbol)).toEqual([]);
+    expect(buildVisibleCoins(coinFixtures, "btc", "all", [], "trend").map((coin) => coin.symbol)).toEqual(["BTCUSDT"]);
   });
 
   it("filters by score, direction, and favorites using pool-specific fields", () => {
@@ -177,14 +180,13 @@ describe("RankingExplorer", () => {
     expect(screen.getByRole("heading", { name: "冲浪池 · Top 0" })).toBeInTheDocument();
   });
 
-  it("shows only primary members for the selected pool", async () => {
+  it("shows overlapping members when a coin belongs to multiple pools", async () => {
     const user = userEvent.setup();
     render(<RankingExplorer initialList={listFixture} initialStatus={statusFixture} />);
 
-    expect(screen.getByRole("heading", { name: "冲浪池 · Top 1" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /逆势池/i }));
+    await user.click(screen.getByRole("button", { name: /趋势池/i }));
 
-    expect(screen.getByRole("heading", { name: "逆势池 · Top 1" })).toBeInTheDocument();
-    expect(screen.getByText("比特张量")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "趋势池 · Top 1" })).toBeInTheDocument();
+    expect(screen.getByText("比特币")).toBeInTheDocument();
   });
 });

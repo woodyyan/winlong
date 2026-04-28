@@ -59,35 +59,79 @@ class MarketSyncService:
         premium_index = await self._get_json(client, f"{self._futures_base_url}/fapi/v1/premiumIndex")
         return spot_exchange_info, spot_tickers, futures_exchange_info, futures_tickers, premium_index
 
-    async def _fetch_market_caps(self, client: httpx.AsyncClient, symbols: set[str]) -> dict[str, float]:
-        coin_ids = sorted(
+    async def _fetch_market_caps(self, client: httpx.AsyncClient, symbols: set[str]) -> dict[str, dict]:
+        registry_ids = sorted(
             {
                 ASSET_REGISTRY[base_asset]["coingeckoId"]
                 for base_asset in symbols
                 if base_asset in ASSET_REGISTRY and ASSET_REGISTRY[base_asset].get("coingeckoId")
             }
         )
-        if not coin_ids:
-            return {}
 
-        chunks = [coin_ids[index : index + 150] for index in range(0, len(coin_ids), 150)]
-        market_caps: dict[str, float] = {}
-        for chunk in chunks:
-            ids_param = ",".join(chunk)
+        markets_by_id: dict[str, dict] = {}
+        if registry_ids:
+            chunks = [registry_ids[index : index + 150] for index in range(0, len(registry_ids), 150)]
+            for chunk in chunks:
+                ids_param = ",".join(chunk)
+                response = await self._get_json(
+                    client,
+                    f"{self._coingecko_base_url}/coins/markets",
+                    params={
+                        "vs_currency": "usd",
+                        "ids": ids_param,
+                        "order": "market_cap_desc",
+                        "per_page": str(len(chunk)),
+                        "page": "1",
+                        "sparkline": "false",
+                    },
+                )
+                for item in response:
+                    markets_by_id[item["id"]] = {
+                        "marketCap": float(item.get("market_cap") or 0),
+                        "name": item.get("name") or item.get("symbol") or item["id"],
+                        "coingeckoId": item["id"],
+                    }
+
+        symbol_candidates: dict[str, dict] = {}
+        pages = max(4, min(8, (len(symbols) + 49) // 50))
+        for page in range(1, pages + 1):
             response = await self._get_json(
                 client,
                 f"{self._coingecko_base_url}/coins/markets",
                 params={
                     "vs_currency": "usd",
-                    "ids": ids_param,
                     "order": "market_cap_desc",
-                    "per_page": str(len(chunk)),
-                    "page": "1",
+                    "per_page": "250",
+                    "page": str(page),
                     "sparkline": "false",
                 },
             )
+            if not response:
+                break
             for item in response:
-                market_caps[item["id"]] = float(item.get("market_cap") or 0)
+                symbol = str(item.get("symbol") or "").upper()
+                if not symbol:
+                    continue
+                candidate = {
+                    "marketCap": float(item.get("market_cap") or 0),
+                    "name": item.get("name") or symbol,
+                    "coingeckoId": item.get("id"),
+                }
+                current = symbol_candidates.get(symbol)
+                if current is None or candidate["marketCap"] > current["marketCap"]:
+                    symbol_candidates[symbol] = candidate
+
+        market_caps: dict[str, dict] = {}
+        for base_asset in symbols:
+            registry = ASSET_REGISTRY.get(base_asset, {})
+            market_meta = None
+            coingecko_id = registry.get("coingeckoId")
+            if coingecko_id:
+                market_meta = markets_by_id.get(coingecko_id)
+            if market_meta is None:
+                market_meta = symbol_candidates.get(base_asset)
+            if market_meta is not None:
+                market_caps[base_asset] = market_meta
         return market_caps
 
     async def _enrich_rows_with_detail_metrics(self, client: httpx.AsyncClient, rows: list[dict]) -> list[dict]:
@@ -284,6 +328,16 @@ class MarketSyncService:
             if symbol.get("quoteAsset") == "USDT" and symbol.get("status") == "TRADING" and symbol.get("baseAsset") in futures_symbols
         }
 
+    def _build_asset_profile(self, base_asset: str, market_meta: dict | None) -> dict:
+        registry = ASSET_REGISTRY.get(base_asset, {})
+        fallback_name = (market_meta or {}).get("name") or base_asset
+        return {
+            "name": registry.get("name") or fallback_name,
+            "nameZh": registry.get("nameZh") or fallback_name,
+            "logoText": registry.get("logoText") or base_asset[:4],
+            "tags": list(registry.get("tags", [])),
+        }
+
     def _merge_market_rows(
         self,
         *,
@@ -292,7 +346,7 @@ class MarketSyncService:
         spot_tickers: list[dict],
         futures_tickers: list[dict],
         premium_index: list[dict],
-        market_caps: dict[str, float],
+        market_caps: dict[str, dict],
     ) -> list[dict]:
         spot_map = {item["symbol"]: item for item in spot_tickers if item.get("symbol", "").endswith("USDT")}
         futures_map = {item["symbol"]: item for item in futures_tickers if item.get("symbol", "").endswith("USDT")}
@@ -302,10 +356,7 @@ class MarketSyncService:
         now = datetime.now(timezone.utc)
 
         for base_asset in sorted(spot_symbols & futures_symbols):
-            registry = ASSET_REGISTRY.get(base_asset)
-            if registry is None:
-                continue
-
+            asset_profile = self._build_asset_profile(base_asset, market_caps.get(base_asset))
             symbol = f"{base_asset}USDT"
             spot = spot_map.get(symbol)
             futures = futures_map.get(symbol)
@@ -313,10 +364,9 @@ class MarketSyncService:
             if spot is None or futures is None:
                 continue
 
-            coingecko_id = registry.get("coingeckoId")
-            market_cap = market_caps.get(coingecko_id, 0)
+            market_cap = float((market_caps.get(base_asset) or {}).get("marketCap") or 0)
             quote_volume = float(spot.get("quoteVolume") or 0)
-            if quote_volume < settings.min_quote_volume_usd or market_cap < settings.min_market_cap_usd:
+            if market_cap < settings.min_market_cap_usd:
                 continue
 
             price = float(spot.get("lastPrice") or 0)
@@ -332,9 +382,9 @@ class MarketSyncService:
                 {
                     "symbol": symbol,
                     "baseAsset": base_asset,
-                    "name": registry["name"],
-                    "nameZh": registry["nameZh"],
-                    "logoText": registry["logoText"],
+                    "name": asset_profile["name"],
+                    "nameZh": asset_profile["nameZh"],
+                    "logoText": asset_profile["logoText"],
                     "price": price,
                     "change24h": change_24h,
                     "volume24h": quote_volume,
@@ -344,7 +394,7 @@ class MarketSyncService:
                     "predictedFundingRate": funding_rate,
                     "longShortRatio": long_short_ratio,
                     "hasFutures": True,
-                    "tags": registry.get("tags", []),
+                    "tags": asset_profile["tags"],
                     "snapshotTime": snapshot_time.isoformat().replace("+00:00", "Z"),
                     "updatedAt": snapshot_time.isoformat().replace("+00:00", "Z"),
                 }
