@@ -44,6 +44,16 @@ export function formatTimeAgo(value: string): string {
   return `${days} 天前`;
 }
 
+export function formatRefreshInterval(hours: number): string {
+  if (hours < 1) {
+    return `${Math.round(hours * 60)} 分钟`;
+  }
+  if (Number.isInteger(hours)) {
+    return `${hours} 小时`;
+  }
+  return `${hours.toFixed(2)} 小时`;
+}
+
 export function getScoreTone(score: number): "excellent" | "good" | "average" | "poor" {
   if (score >= 80) return "excellent";
   if (score >= 60) return "good";

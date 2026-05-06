@@ -258,14 +258,15 @@ class MarketSyncService:
 
         price_change_1h = self._pct_change(closes, 1, default=(row.get("change24h") or 0.0) / 24)
         distance_to_ma20 = self._distance_to_ma(closes, period=20, fallback=(row.get("change24h") or 0.0) / 3)
-        price_volatility = self._volatility(self._pct_change_series(closes), fallback=abs(row.get("change24h") or 0.0) * 0.6)
-        corr_btc = self._correlation_from_prices(closes, btc_closes, fallback=1.0 if row.get("baseAsset") == "BTC" else 0.55)
-        corr_eth = self._correlation_from_prices(closes, eth_closes, fallback=1.0 if row.get("baseAsset") == "ETH" else 0.55)
+        price_returns = self._pct_change_series(closes)
+        price_volatility = self._volatility(price_returns, fallback=abs(row.get("change24h") or 0.0) * 0.6)
 
-        price_change_24h = row.get("change24h") or 0.0
+        corr_btc = self._correlation_from_prices(closes, btc_closes, fallback=0.55)
+        corr_eth = self._correlation_from_prices(closes, eth_closes, fallback=0.55)
+
         oi_to_volume = (row.get("openInterest") or 0.0) / max(row.get("volume24h") or 0.0, 1.0)
         liquidation_proxy = self._build_liquidation_proxy(
-            price_change_24h=price_change_24h,
+            price_change_24h=row.get("change24h") or 0.0,
             oi_change_1h=oi_change_1h,
             oi_change_24h=oi_change_24h,
             funding_mean=funding_mean,
@@ -276,6 +277,9 @@ class MarketSyncService:
             "oiChange1h": round(oi_change_1h, 4),
             "oiChange4h": round(oi_change_4h, 4),
             "oiChange24h": round(oi_change_24h, 4),
+            "turnover24h": round((row.get("volume24h") or 0.0) / max(row.get("marketCap") or 1.0, 1.0), 6),
+            "oiToVolume": round(oi_to_volume, 6),
+            "oiToMarketcap": round((row.get("openInterest") or 0.0) / max(row.get("marketCap") or 1.0, 1.0), 6),
             "corrBtc7d": round(corr_btc, 4),
             "corrEth7d": round(corr_eth, 4),
             "fundingRateMean24h": round(funding_mean, 6),
@@ -454,8 +458,8 @@ class MarketSyncService:
         overview = {
             "computedAt": now_iso,
             "lastScoreAt": now_iso,
-            "nextScoreAt": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat().replace("+00:00", "Z"),
-            "refreshIntervalHours": 0,
+            "nextScoreAt": (datetime.now(timezone.utc) + timedelta(minutes=settings.refresh_interval_minutes)).isoformat().replace("+00:00", "Z"),
+            "refreshIntervalHours": round(settings.refresh_interval_minutes / 60, 2),
             "poolSize": pool_size,
             "coinsWithFutures": pool_size,
             "dataQuality": "full",

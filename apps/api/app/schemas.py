@@ -158,7 +158,7 @@ class StatusOverview(BaseModel):
     computedAt: str
     lastScoreAt: str
     nextScoreAt: str
-    refreshIntervalHours: int
+    refreshIntervalHours: float
     poolSize: int
     coinsWithFutures: int
     dataQuality: str
@@ -177,6 +177,19 @@ class StatusResponse(BaseModel):
     code: int
     message: str
     data: StatusData
+
+
+class ManualRefreshData(BaseModel):
+    ok: bool
+    reason: str
+    refreshedAt: str
+    nextRefreshAt: str
+
+
+class ManualRefreshResponse(BaseModel):
+    code: int
+    message: str
+    data: ManualRefreshData
 
 
 class HealthResponse(BaseModel):

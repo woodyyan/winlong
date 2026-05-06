@@ -1,6 +1,6 @@
 import { DatabaseZap } from "lucide-react";
 
-import { formatDateTime, formatTimeAgo } from "@/lib/formatters";
+import { formatDateTime, formatRefreshInterval, formatTimeAgo } from "@/lib/formatters";
 import type { StatusOverview } from "@/lib/types";
 
 const qualityTone: Record<string, string> = {
@@ -29,6 +29,7 @@ export function StatusBar({ overview }: { overview: StatusOverview }) {
         <div className="flex flex-wrap items-center gap-2 text-sm text-slate-400">
           <span className={`rounded-full px-3 py-1 text-xs ${qualityClass}`}>{qualityText}</span>
           <span>更新于 {formatTimeAgo(overview.computedAt)}</span>
+          <span>周期 {formatRefreshInterval(overview.refreshIntervalHours)}</span>
           <span>下次评分 {formatDateTime(overview.nextScoreAt)}</span>
         </div>
       </div>

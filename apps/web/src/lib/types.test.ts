@@ -112,8 +112,8 @@ describe("winlong frontend types", () => {
         overview: {
           computedAt: "2026-04-27T00:00:00Z",
           lastScoreAt: "2026-04-27T00:00:00Z",
-          nextScoreAt: "2026-04-27T00:05:00Z",
-          refreshIntervalHours: 0,
+          nextScoreAt: "2026-04-27T00:15:00Z",
+          refreshIntervalHours: 0.25,
           poolSize: 120,
           coinsWithFutures: 120,
           dataQuality: "full",

@@ -2,6 +2,7 @@ import {
   formatCompactCurrency,
   formatCurrency,
   formatPercent,
+  formatRefreshInterval,
   getScoreTone,
 } from "@/lib/formatters";
 
@@ -17,6 +18,11 @@ describe("formatters", () => {
   it("formats positive percentages with plus sign", () => {
     expect(formatPercent(2.35)).toBe("+2.35%");
     expect(formatPercent(-1.26)).toBe("-1.26%");
+  });
+
+  it("formats refresh intervals in minutes or hours", () => {
+    expect(formatRefreshInterval(0.25)).toBe("15 分钟");
+    expect(formatRefreshInterval(4)).toBe("4 小时");
   });
 
   it("maps score ranges to tones", () => {

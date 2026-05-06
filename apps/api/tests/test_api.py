@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+import asyncio
+
+from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
 from app.db import init_db, replace_runtime_dataset
+import app.main as app_main
 from app.main import app
-from app.services.market_sync_service import MarketSyncService
+from app.services.market_sync_service import MarketSyncError, MarketSyncService
 from app.services.pool_scoring_service import PoolScoringService
+from app.services.sync_runtime import RuntimeSyncController
 from app.services.winlong_service import WinlongService
 
 
@@ -15,7 +21,8 @@ from app.services.winlong_service import WinlongService
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     db_path = tmp_path / "test-winlong.db"
     init_db(db_path, force_reset=True)
-    monkeypatch.setattr("app.main.service", WinlongService(db_path=db_path))
+    monkeypatch.setattr(app_main, "service", WinlongService(db_path=db_path))
+    monkeypatch.setattr(app_main, "RuntimeSyncController", lambda interval_minutes, enabled_on_start: RuntimeSyncController(interval_minutes=interval_minutes, enabled_on_start=False))
     with TestClient(app) as test_client:
         yield test_client
 
@@ -156,6 +163,14 @@ def test_coin_history_respects_days_param(client: TestClient):
     assert len(history) == 7
     assert history[0]["timestamp"] < history[-1]["timestamp"]
 
+
+
+
+def test_status_contains_15_minute_runtime_cadence(client: TestClient):
+    response = client.get("/api/winlong/status")
+    assert response.status_code == 200
+    overview = response.json()["data"]["overview"]
+    assert overview["refreshIntervalHours"] == 0.25
 
 def test_status_contains_sources_and_logs(client: TestClient):
     response = client.get("/api/winlong/status")
@@ -655,3 +670,163 @@ async def test_market_sync_service_symbol_metric_fallbacks_on_partial_failure(mo
     assert metrics["predictedFundingRate"] == row["predictedFundingRate"]
     assert metrics["corrBtc7d"] >= 0.9
     assert metrics["topTraderSpread"] > 0
+
+
+def test_runtime_sync_controller_waits_until_next_quarter_hour():
+    class FakeClock:
+        def __init__(self):
+            self.current = datetime(2026, 5, 6, 12, 7, 30, tzinfo=timezone.utc)
+
+        def now(self):
+            return self.current
+
+    clock = FakeClock()
+    controller = RuntimeSyncController(interval_minutes=15, enabled_on_start=False, clock=clock.now)
+
+    assert controller.seconds_until_next_refresh() == 450.0
+    assert controller.next_refresh_at == "2026-05-06T12:15:00Z"
+
+    clock.current = clock.current.replace(minute=15, second=0, microsecond=0)
+
+    assert controller.seconds_until_next_refresh() == 900.0
+    assert controller.next_refresh_at == "2026-05-06T12:30:00Z"
+
+
+def test_runtime_sync_controller_refresh_replaces_dataset(monkeypatch: pytest.MonkeyPatch):
+    payload = {
+        "coins": [],
+        "factorRows": [],
+        "historyRows": [],
+        "sources": [],
+        "logs": [],
+        "overview": {
+            "computedAt": "2026-05-06T12:00:00Z",
+            "lastScoreAt": "2026-05-06T12:00:00Z",
+            "nextScoreAt": "2026-05-06T12:15:00Z",
+            "refreshIntervalHours": 0.25,
+            "poolSize": 0,
+            "coinsWithFutures": 0,
+            "dataQuality": "full",
+            "uptime": "15分钟",
+        },
+    }
+    replace_calls: list[dict] = []
+
+    class FakeSyncService:
+        async def build_runtime_dataset(self):
+            return payload, [{"symbol": "BTCUSDT"}], [{"symbol": "BTCUSDT"}], [{"symbol": "BTCUSDT"}]
+
+    import app.services.sync_runtime as sync_runtime
+    monkeypatch.setattr(sync_runtime, "MarketSyncService", FakeSyncService)
+    monkeypatch.setattr(sync_runtime, "replace_runtime_dataset", lambda *args, **kwargs: replace_calls.append(kwargs))
+
+    controller = RuntimeSyncController(interval_minutes=15, enabled_on_start=False)
+    result = asyncio.run(controller.refresh(reason="manual"))
+
+    assert result["ok"] is True
+    assert result["reason"] == "manual"
+    assert result["nextRefreshAt"].endswith("Z")
+    assert len(replace_calls) == 1
+    assert replace_calls[0]["snapshots"] == [{"symbol": "BTCUSDT"}]
+
+
+def test_runtime_sync_controller_returns_failure_payload(monkeypatch: pytest.MonkeyPatch):
+    class FakeSyncService:
+        async def build_runtime_dataset(self):
+            raise MarketSyncError("upstream unavailable")
+
+    import app.services.sync_runtime as sync_runtime
+    monkeypatch.setattr(sync_runtime, "MarketSyncService", FakeSyncService)
+
+    controller = RuntimeSyncController(interval_minutes=15, enabled_on_start=False)
+    result = asyncio.run(controller.refresh(reason="manual"))
+
+    assert result["ok"] is False
+    assert result["reason"] == "manual"
+    assert result["error"] == "upstream unavailable"
+
+
+def test_status_uses_runtime_sync_controller_metadata(tmp_path: Path):
+    db_path = tmp_path / "runtime-status.db"
+    init_db(db_path, force_reset=True)
+    service = MarketSyncService()
+
+    rows = [
+        {
+            "symbol": "BTCUSDT",
+            "baseAsset": "BTC",
+            "name": "Bitcoin",
+            "nameZh": "比特币",
+            "logoText": "BTC",
+            "price": 65000.0,
+            "change24h": 3.5,
+            "volume24h": 20000000000.0,
+            "marketCap": 1200000000000.0,
+            "openInterest": 7812000000.0,
+            "fundingRate": 0.0001,
+            "predictedFundingRate": 0.0001,
+            "longShortRatio": 1.18,
+            "hasFutures": True,
+            "tags": ["core"],
+            "snapshotTime": "2026-04-26T10:00:00Z",
+            "updatedAt": "2026-04-26T10:00:00Z",
+        }
+    ]
+
+    payload, features, pool_scores = service._build_payload(rows)  # noqa: SLF001
+    snapshots = service._build_snapshots(rows)  # noqa: SLF001
+    replace_runtime_dataset(payload, snapshots=snapshots, features=features, pool_scores=pool_scores, db_path=db_path)
+
+    runtime_client = WinlongService(db_path=db_path)
+    sync_controller = SimpleNamespace(
+        refresh_interval_hours=0.25,
+        next_refresh_at="2026-04-26T10:15:00Z",
+        uptime="45分钟",
+    )
+
+    status = runtime_client.get_status(sync_controller=sync_controller)["data"]["overview"]
+
+    assert status["refreshIntervalHours"] == 0.25
+    assert status["nextScoreAt"] == "2026-04-26T10:15:00Z"
+    assert status["uptime"] == "45分钟"
+
+
+def test_manual_refresh_endpoint_returns_refresh_metadata(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    async def fake_refresh(*, reason: str):
+        return {
+            "ok": True,
+            "reason": reason,
+            "refreshedAt": "2026-05-06T12:00:00Z",
+            "nextRefreshAt": "2026-05-06T12:15:00Z",
+        }
+
+    monkeypatch.setattr(client.app.state.sync_controller, "refresh", fake_refresh)
+
+    response = client.post("/api/winlong/refresh")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["code"] == 0
+    assert payload["data"]["ok"] is True
+    assert payload["data"]["reason"] == "manual"
+    assert payload["data"]["nextRefreshAt"] == "2026-05-06T12:15:00Z"
+
+
+def test_manual_refresh_endpoint_surfaces_sync_failure(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    async def fake_refresh(*, reason: str):
+        return {
+            "ok": False,
+            "reason": reason,
+            "refreshedAt": "2026-05-06T12:00:00Z",
+            "nextRefreshAt": "2026-05-06T12:15:00Z",
+            "error": "upstream unavailable",
+        }
+
+    monkeypatch.setattr(client.app.state.sync_controller, "refresh", fake_refresh)
+
+    response = client.post("/api/winlong/refresh")
+
+    assert response.status_code == 503
+    payload = response.json()
+    assert payload["code"] == 503
+    assert payload["message"] == "upstream unavailable"

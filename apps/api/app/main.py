@@ -9,39 +9,39 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.db import init_db, replace_runtime_dataset
+from app.db import init_db
 from app.schemas import (
     CoinDetailResponse,
     CoinHistoryResponse,
     HealthResponse,
     ListResponse,
+    ManualRefreshResponse,
     StatusResponse,
 )
-from app.services.market_sync_service import MarketSyncError, MarketSyncService
+from app.services.sync_runtime import RuntimeSyncController
 from app.services.winlong_service import CoinNotFoundError, WinlongService
 
 
 logger = logging.getLogger(__name__)
+service = WinlongService()
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(app: FastAPI):
     init_db()
-    if settings.enable_sync_on_start:
-        sync_service = MarketSyncService()
-        try:
-            payload, snapshots, features, pool_scores = await sync_service.build_runtime_dataset()
-            replace_runtime_dataset(payload, snapshots=snapshots, features=features, pool_scores=pool_scores)
-            logger.info("runtime market sync completed on startup")
-        except MarketSyncError as exc:
-            logger.warning("runtime market sync skipped: %s", exc)
-        except Exception:
-            logger.exception("runtime market sync failed, keeping current dataset")
-    yield
+    sync_controller = RuntimeSyncController(
+        interval_minutes=settings.refresh_interval_minutes,
+        enabled_on_start=settings.enable_sync_on_start,
+    )
+    app.state.sync_controller = sync_controller
+    await sync_controller.start()
+    try:
+        yield
+    finally:
+        await sync_controller.stop()
 
 
 app = FastAPI(title=settings.app_name, version=settings.app_version, lifespan=lifespan)
-service = WinlongService()
 
 app.add_middleware(
     CORSMiddleware,
@@ -113,5 +113,15 @@ async def get_coin_history(symbol: str, days: int = Query(30, ge=1, le=180)):
 
 
 @app.get("/api/winlong/status", response_model=StatusResponse)
-async def get_status():
-    return service.get_status()
+async def get_status(request: Request):
+    sync_controller = request.app.state.sync_controller
+    return service.get_status(sync_controller=sync_controller)
+
+
+@app.post("/api/winlong/refresh", response_model=ManualRefreshResponse)
+async def post_refresh(request: Request):
+    sync_controller = request.app.state.sync_controller
+    result = await sync_controller.refresh(reason="manual")
+    if result["ok"]:
+        return {"code": 0, "message": "ok", "data": result}
+    raise HTTPException(status_code=503, detail=result.get("error") or "refresh failed")

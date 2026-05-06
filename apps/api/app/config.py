@@ -22,6 +22,7 @@ class Settings:
     app_version: str = "0.1.0"
     db_path: Path = Path(os.getenv("WINLONG_DB_PATH", DEFAULT_DB_PATH))
     enable_sync_on_start: bool = os.getenv("WINLONG_ENABLE_SYNC_ON_START", "false").lower() == "true"
+    refresh_interval_minutes: int = int(os.getenv("WINLONG_REFRESH_INTERVAL_MINUTES", "15"))
     binance_spot_base_url: str = os.getenv("BINANCE_SPOT_BASE_URL", "https://api.binance.com")
     binance_futures_base_url: str = os.getenv("BINANCE_FUTURES_BASE_URL", "https://fapi.binance.com")
     coingecko_base_url: str = os.getenv("COINGECKO_BASE_URL", "https://api.coingecko.com/api/v3")

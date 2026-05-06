@@ -127,8 +127,8 @@ const statusFixture: StatusResponse["data"] = {
   overview: {
     computedAt: "2026-04-22T08:00:00Z",
     lastScoreAt: "2026-04-22T08:00:00Z",
-    nextScoreAt: "2026-04-22T12:00:00Z",
-    refreshIntervalHours: 4,
+    nextScoreAt: "2026-04-22T08:15:00Z",
+    refreshIntervalHours: 0.25,
     poolSize: 2,
     coinsWithFutures: 1,
     dataQuality: "full",

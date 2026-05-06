@@ -1,6 +1,6 @@
 import { Activity, Database, ShieldAlert } from "lucide-react";
 
-import { formatDateTime, formatTimeAgo } from "@/lib/formatters";
+import { formatDateTime, formatRefreshInterval, formatTimeAgo } from "@/lib/formatters";
 import type { StatusResponse } from "@/lib/types";
 
 const sourceTone: Record<string, string> = {
@@ -47,7 +47,7 @@ export function StatusDashboard({ data }: { data: StatusResponse["data"] }) {
         <div className="panel rounded-[28px] p-5">
           <div className="text-slate-300">运行时间</div>
           <div className="mt-3 text-2xl font-semibold text-slate-50">{data.overview.uptime}</div>
-          <div className="mt-2 text-sm text-slate-400">周期 {data.overview.refreshIntervalHours} 小时 / 次</div>
+          <div className="mt-2 text-sm text-slate-400">周期 {formatRefreshInterval(data.overview.refreshIntervalHours)} / 次</div>
         </div>
       </section>
 

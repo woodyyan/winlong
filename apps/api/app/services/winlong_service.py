@@ -230,7 +230,7 @@ class WinlongService:
         ]
         return {"code": 0, "message": "ok", "data": history}
 
-    def get_status(self) -> dict:
+    def get_status(self, *, sync_controller: object | None = None) -> dict:
         with get_connection(self.db_path) as conn:
             overview = conn.execute("SELECT * FROM status_overview WHERE id = 1").fetchone()
             sources = conn.execute("SELECT * FROM source_status ORDER BY source ASC").fetchall()
@@ -245,13 +245,13 @@ class WinlongService:
                 "overview": {
                     "computedAt": overview["computed_at"],
                     "lastScoreAt": overview["last_score_at"],
-                    "nextScoreAt": overview["next_score_at"],
-                    "refreshIntervalHours": overview["refresh_interval_hours"],
+                    "nextScoreAt": getattr(sync_controller, "next_refresh_at", overview["next_score_at"]),
+                    "refreshIntervalHours": getattr(sync_controller, "refresh_interval_hours", overview["refresh_interval_hours"]),
                     "poolSize": overview["pool_size"],
                     "coinsWithFutures": overview["coins_with_futures"],
                     "dataQuality": overview["data_quality"],
                     "databaseSizeMb": database_size_mb,
-                    "uptime": overview["uptime"],
+                    "uptime": getattr(sync_controller, "uptime", overview["uptime"]),
                     "runtimeData": runtime_snapshot["total"] > 0,
                 },
                 "sources": [
