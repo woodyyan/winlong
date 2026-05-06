@@ -22,7 +22,7 @@ async function fetchJson<T>(path: string, revalidate = 60): Promise<T> {
 }
 
 export async function getWinlongList() {
-  return fetchJson<WinlongListResponse>("/api/winlong/list?sort_by=score&order=desc", 60);
+  return fetchJson<WinlongListResponse>("/api/winlong/list?sort_by=score&order=desc&limit=150", 60);
 }
 
 export async function getCoinDetail(symbol: string) {

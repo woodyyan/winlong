@@ -84,7 +84,7 @@ export function RankingExplorer({
   const favorites = useWatchlistStore((state) => state.symbols);
 
   const { data: listResponse } = useSWR<WinlongListResponse>(
-    "/api/winlong/list?sort_by=score&order=desc",
+    "/api/winlong/list?sort_by=score&order=desc&limit=150",
     clientFetcher,
     {
       fallbackData: { code: 0, message: "ok", data: initialList },

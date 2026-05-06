@@ -27,7 +27,7 @@ class Settings:
     coingecko_base_url: str = os.getenv("COINGECKO_BASE_URL", "https://api.coingecko.com/api/v3")
     sync_timeout_seconds: float = float(os.getenv("WINLONG_SYNC_TIMEOUT_SECONDS", "20"))
     min_market_cap_usd: float = float(os.getenv("WINLONG_MIN_MARKET_CAP_USD", "10000000"))
-    universe_limit: int = int(os.getenv("WINLONG_UNIVERSE_LIMIT", "100"))
+    universe_limit: int = int(os.getenv("WINLONG_UNIVERSE_LIMIT", "150"))
     allowed_origins_raw: str = os.getenv(
         "WINLONG_ALLOWED_ORIGINS",
         "http://localhost:3001,http://127.0.0.1:3001",

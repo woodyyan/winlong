@@ -538,16 +538,16 @@ def test_merge_market_rows_allows_non_registry_symbol_with_market_cap():
     assert fart_row["marketCap"] == 25000000.0
 
 
-def test_merge_market_rows_uses_top_100_by_quote_volume():
+def test_merge_market_rows_uses_top_150_by_quote_volume():
     service = MarketSyncService()
-    spot_symbols = {f"C{index:03d}" for index in range(105)}
+    spot_symbols = {f"C{index:03d}" for index in range(155)}
     futures_symbols = set(spot_symbols)
     spot_tickers = []
     futures_tickers = []
     premium_index = []
     market_caps = {}
 
-    for index in range(105):
+    for index in range(155):
         base_asset = f"C{index:03d}"
         symbol = f"{base_asset}USDT"
         spot_tickers.append(
@@ -566,8 +566,8 @@ def test_merge_market_rows_uses_top_100_by_quote_volume():
         market_caps=market_caps,
     )
 
-    assert len(rows) == 100
-    assert rows[0]["symbol"] == "C104USDT"
+    assert len(rows) == 150
+    assert rows[0]["symbol"] == "C154USDT"
     assert rows[-1]["symbol"] == "C005USDT"
 
 

@@ -6,10 +6,10 @@ from math import isfinite
 class PoolScoringService:
     POOL_NAMES = ("momentum", "trend", "meanReversion", "lsGame")
     POOL_ENTRY_THRESHOLDS = {
-        "momentum": 55.0,
-        "trend": 60.0,
-        "meanReversion": 55.0,
-        "lsGame": 55.0,
+        "momentum": 50.0,
+        "trend": 55.0,
+        "meanReversion": 50.0,
+        "lsGame": 50.0,
     }
 
     def build_features_and_scores(self, rows: list[dict]) -> tuple[list[dict], list[dict], list[dict]]:

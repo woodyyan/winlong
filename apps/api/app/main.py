@@ -83,7 +83,7 @@ async def health() -> HealthResponse:
 
 @app.get("/api/winlong/list", response_model=ListResponse)
 async def get_winlong_list(
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(150, ge=1, le=200),
     offset: int = Query(0, ge=0),
     min_score: float = Query(0, ge=0, le=100),
     sort_by: str = Query("rank"),

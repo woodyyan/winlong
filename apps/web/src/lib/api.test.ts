@@ -28,7 +28,7 @@ describe("api client", () => {
     await getWinlongList();
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://api.internal:8001/api/winlong/list?sort_by=score&order=desc",
+      "http://api.internal:8001/api/winlong/list?sort_by=score&order=desc&limit=150",
       expect.objectContaining({ next: { revalidate: 60 } }),
     );
   });
